@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "pynetkit"
+version = "0.1.0"
+description = "Reverse engineering utilities for several popular network protocols"
+authors = ["Kuba Szczodrzyński <kuba@szczodrzynski.pl>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "pynetkit" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+py-datastruct = "^1.1.0"
+xmltodict = "^0.13.0"
+pywin32 = {version = "*", markers = "sys_platform == 'win32'"}
+macaddress = "^2.0.2"
+win32wifi = {version = "^0.1.0", markers = "sys_platform == 'win32'"}
+pycryptodome = "^3.21.0"
+ifaddr = "^0.2.0"
+icmplib = "^3.0.4"
+amqtt = "0.11.0b1"
+sslpsk3 = "^1.1.1"
+dnslib = "^0.9.25"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.1.0"
+isort = "^5.12.0"
+autoflake = "^2.1.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
