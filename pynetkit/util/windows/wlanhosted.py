@@ -9,7 +9,7 @@ from winreg import KEY_WRITE, REG_BINARY, OpenKey, QueryValueEx, SetValueEx
 from datastruct import DataStruct, datastruct
 from datastruct.fields import align, built, bytestr, field, padding
 
-from pynetkit.utils.dpapi import Dpapi, DpapiBlob, DpapiKeyScope, DpapiKeyStore
+from pynetkit.util.dpapi import Dpapi, DpapiBlob, DpapiKeyScope, DpapiKeyStore
 
 from .wlanmisc import Dot11AuthAlgorithm, Dot11CipherAlgorithm
 

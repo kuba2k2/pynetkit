@@ -18,10 +18,10 @@ from win32wifi.Win32Wifi import (
 
 from pynetkit.modules.base import module_thread
 from pynetkit.types import NetworkInterface, WifiNetwork
-from pynetkit.utils.dpapi import Dpapi
-from pynetkit.utils.windows import wlanapi, wlanhosted, wlanmisc
-from pynetkit.utils.windows.wlanapi import WlanHostedNetworkStatus
-from pynetkit.utils.windows.wlanhosted import (
+from pynetkit.util.dpapi import Dpapi
+from pynetkit.util.windows import wlanapi, wlanhosted, wlanmisc
+from pynetkit.util.windows.wlanapi import WlanHostedNetworkStatus
+from pynetkit.util.windows.wlanhosted import (
     HostedNetworkSecurity,
     HostedNetworkSettings,
 )

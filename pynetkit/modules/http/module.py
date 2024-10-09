@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 from sslpsk3.sslpsk3 import _ssl_set_psk_server_callback
 
 from pynetkit.modules.base import ModuleBase
-from pynetkit.utils import matches
+from pynetkit.util import matches
 
 from .events import HttpRequestEvent, HttpResponseEvent
 from .types import Request, RequestHandler

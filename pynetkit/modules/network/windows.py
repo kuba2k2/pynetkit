@@ -6,7 +6,7 @@ from win32wifi import Win32Wifi
 
 from pynetkit.modules.base import module_thread
 from pynetkit.types import Ip4Config, NetworkInterface
-from pynetkit.utils.windows import iphlpapi, wlanapi
+from pynetkit.util.windows import iphlpapi, wlanapi
 
 from .common import NetworkCommon
 
