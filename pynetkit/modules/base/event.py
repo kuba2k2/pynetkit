@@ -22,6 +22,10 @@ class EventMixin(FutureMixin, LoggerMixin):
         super().__init__()
         self.queue = Queue()
 
+    @property
+    def is_started(self) -> bool:
+        return bool(self.thread)
+
     def entrypoint(self, future: Future = None) -> None:
         self.should_run = True
         thread = current_thread()
@@ -46,6 +50,8 @@ class EventMixin(FutureMixin, LoggerMixin):
             loop.run_until_complete(self.event_loop_thread_stop())
 
     async def start(self) -> None:
+        if self.is_started:
+            raise RuntimeError(f"{type(self).__name__} is already started")
         self.verbose(f"Starting")
         future = self.make_future()
         self.thread = Thread(

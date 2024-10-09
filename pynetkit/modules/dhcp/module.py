@@ -15,34 +15,32 @@ from .structs import DhcpPacket
 
 
 class DhcpModule(ModuleBase):
+    PRE_RUN_CONFIG = ["address", "port"]
+    # pre-run configuration
+    address: IPv4Address
+    port: int
+    # runtime configuration
     ipconfig: Ip4Config | None = None
     range: tuple[IPv4Address, IPv4Address] | None = None
     dns: IPv4Address | None = None
-
-    sock: socket | None = None
+    hostname: str | None = None
     hosts: dict[MAC, IPv4Address] | None = None
+    # server handle
+    _sock: socket | None = None
 
-    def configure(
-        self,
-        ipconfig: Ip4Config,
-        ip_range: tuple[IPv4Address, IPv4Address],
-        dns: IPv4Address = None,
-    ) -> None:
-        if self.sock is not None:
-            raise RuntimeError("Server already running, stop to reconfigure")
-        self.ipconfig = ipconfig
-        self.range = ip_range
-        self.dns = dns
+    def __init__(self):
+        super().__init__()
+        self.address = IPv4Address("0.0.0.0")
+        self.port = 67
+        self.hostname = "pynetkit"
         self.hosts = {}
 
     async def run(self) -> None:
-        if not self.ipconfig:
-            raise RuntimeError("Server not configured")
-        self.info(f"Starting DHCP server on {self.ipconfig.address}:67")
-        self.sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-        self.sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
-        self.sock.bind((str(self.ipconfig.address), 67))
-        while self.should_run and self.sock is not None:
+        self.info(f"Starting DHCP server on {self.address}:{self.port}")
+        self._sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        self._sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        self._sock.bind((str(self.address), self.port))
+        while self.should_run and self._sock is not None:
             self._process_request()
 
     async def stop(self) -> None:
@@ -50,12 +48,12 @@ class DhcpModule(ModuleBase):
         await super().stop()
 
     async def cleanup(self) -> None:
-        if self.sock:
-            self.sock.close()
-        self.sock = None
+        if self._sock:
+            self._sock.close()
+        self._sock = None
 
     def _process_request(self) -> None:
-        data, _ = self.sock.recvfrom(4096)
+        data, _ = self._sock.recvfrom(4096)
         try:
             packet = DhcpPacket.unpack(data)
         except Exception as e:
@@ -70,6 +68,13 @@ class DhcpModule(ModuleBase):
             DhcpMessageType.INFORM,
         ]:
             self.warning(f"Unhandled message type: {message_type}")
+            return
+
+        if self.ipconfig is None:
+            self.error(f"Cannot serve DHCP request - no IP config set")
+            return
+        if self.range is None:
+            self.error(f"Cannot serve DHCP request - no lease address range set")
             return
 
         host_name = packet[DhcpOptionType.HOST_NAME]
@@ -90,7 +95,8 @@ class DhcpModule(ModuleBase):
         packet.packet_type = DhcpPacketType.BOOT_REPLY
         packet.your_ip_address = address
         packet.server_ip_address = self.ipconfig.address
-        packet.server_host_name = "CCTR"
+        if self.hostname:
+            packet.server_host_name = self.hostname
         packet.options_clear()
         if message_type == DhcpMessageType.DISCOVER:
             action = "Offering"
@@ -99,7 +105,7 @@ class DhcpModule(ModuleBase):
             action = "ACK-ing"
             packet[DhcpOptionType.MESSAGE_TYPE] = DhcpMessageType.ACK
         packet[DhcpOptionType.SUBNET_MASK] = self.ipconfig.netmask
-        packet[DhcpOptionType.ROUTER] = self.ipconfig.address
+        packet[DhcpOptionType.ROUTER] = self.ipconfig.gateway
         if self.dns:
             packet[DhcpOptionType.DNS_SERVERS] = self.dns
             packet[DhcpOptionType.DOMAIN_NAME] = "local"
@@ -117,7 +123,7 @@ class DhcpModule(ModuleBase):
             self.warning(f"Requested DHCP option {option} not populated")
 
         self.debug(f"{action} {address} to {packet.client_mac_address} ({host_name})")
-        self.sock.sendto(packet.pack(), ("255.255.255.255", 68))
+        self._sock.sendto(packet.pack(), ("255.255.255.255", 68))
 
         if message_type != DhcpMessageType.DISCOVER:
             DhcpLeaseEvent(

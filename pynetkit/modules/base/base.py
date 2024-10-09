@@ -8,6 +8,18 @@ from .event import EventMixin
 
 
 class ModuleBase(EventMixin):
+    PRE_RUN_CONFIG: list[str] = None
+
+    def __setattr__(self, key, value):
+        if (
+            not self.PRE_RUN_CONFIG
+            or key not in self.PRE_RUN_CONFIG
+            or not self.is_started
+        ):
+            super().__setattr__(key, value)
+            return
+        raise RuntimeError(f"{type(self).__name__} must be stopped first")
+
     @staticmethod
     def is_windows() -> bool:
         return os.name == "nt"
