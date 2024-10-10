@@ -1,12 +1,14 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-9.
 
 import os
+import sys
 from logging import DEBUG, INFO, exception
 
 import click
 
 from pynetkit.util.logging import VERBOSE, LoggingHandler
 
+from .cli_curses import cli_curses
 from .cli_simple import cli_simple
 
 VERBOSITY_LEVEL = {
@@ -58,7 +60,10 @@ def cli_entrypoint(
     logger.raw = raw_log
     logger.full_traceback = traceback
 
-    cli_simple()
+    if sys.stdout.isatty():
+        cli_curses()
+    else:
+        cli_simple()
 
 
 def cli():

@@ -56,6 +56,7 @@ class LoggingHandler(StreamHandler):
         self.raw = raw
         self.full_traceback = full_traceback
         self.emitters = []
+        self.emitters_only = False
         self.attach()
         sys.excepthook = self.excepthook
         threading.excepthook = self.excepthook
@@ -115,12 +116,13 @@ class LoggingHandler(StreamHandler):
 
     def emit_raw(self, log_prefix: str, message: str, color: str):
         self.emit_lock.acquire(timeout=1.0)
-        file = sys.stderr if log_prefix in "WEC" else sys.stdout
-        if file:
-            if self.raw:
-                click.echo(message, file=file)
-            else:
-                click.secho(message, file=file, fg=color)
+        if not self.emitters_only:
+            file = sys.stderr if log_prefix in "WEC" else sys.stdout
+            if file:
+                if self.raw:
+                    click.echo(message, file=file)
+                else:
+                    click.secho(message, file=file, fg=color)
         for emitter in self.emitters:
             emitter(log_prefix, message, color)
         self.emit_lock.release()

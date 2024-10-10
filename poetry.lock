@@ -111,7 +111,7 @@ files = [
 name = "comtypes"
 version = "1.4.7"
 description = "Pure Python COM package"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "comtypes-1.4.7-py3-none-any.whl", hash = "sha256:d46ac2bfb6176eda6b03cd64b9afaa212224ede105054e77aac6bbbd8d9979db"},
@@ -319,7 +319,7 @@ files = [
 name = "pywin32"
 version = "307"
 description = "Python for Window Extensions"
-optional = true
+optional = false
 python-versions = "*"
 files = [
     {file = "pywin32-307-cp310-cp310-win32.whl", hash = "sha256:f8f25d893c1e1ce2d685ef6d0a481e87c6f510d0f3f117932781f412e0eba31b"},
@@ -552,7 +552,7 @@ files = [
 name = "win32wifi"
 version = "0.1.0"
 description = "Python Windows Wifi - !Still Under Development!"
-optional = true
+optional = false
 python-versions = "*"
 files = [
     {file = "win32wifi-0.1.0.zip", hash = "sha256:bfb4c6b8aeacd1b10cd74c411b4f228e12ca86022a32af7083a12cd88a0fd371"},
@@ -576,4 +576,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "2c622fb020771c020902dd4650a6c16d833ebbb0caeda35ba412ac6a6f577ecf"
+content-hash = "4063c5882cd774e89327e3cb1765fd50a449e4563a5bedee1c6899273e17f434"
