@@ -16,6 +16,7 @@ from logging import (
 )
 from threading import Lock
 from time import time
+from typing import Callable
 
 import click
 
@@ -54,6 +55,7 @@ class LoggingHandler(StreamHandler):
         self.timed = timed
         self.raw = raw
         self.full_traceback = full_traceback
+        self.emitters = []
         self.attach()
         sys.excepthook = self.excepthook
         threading.excepthook = self.excepthook
@@ -78,6 +80,12 @@ class LoggingHandler(StreamHandler):
         for h in logger.handlers:
             logger.removeHandler(h)
         logger.addHandler(self)
+
+    def add_emitter(self, emitter: Callable[[str, str, str], None]):
+        self.emitters.append(emitter)
+
+    def clear_emitters(self):
+        self.emitters.clear()
 
     def emit(self, record: LogRecord) -> None:
         message = record.msg
@@ -113,6 +121,8 @@ class LoggingHandler(StreamHandler):
                 click.echo(message, file=file)
             else:
                 click.secho(message, file=file, fg=color)
+        for emitter in self.emitters:
+            emitter(log_prefix, message, color)
         self.emit_lock.release()
 
     @staticmethod
