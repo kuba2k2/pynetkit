@@ -95,7 +95,11 @@ def cli_loop():
     help_str, module = COMMANDS[cmd]
     # import module if not imported yet
     if isinstance(module, str):
-        module = import_module(module)
+        try:
+            module = import_module(module)
+        except Exception as e:
+            exception("Module import failed", exc_info=e)
+            return
         COMMANDS[cmd] = (help_str, module)
     # make sure it has a CLI
     if "cli" not in module:
@@ -110,6 +114,8 @@ def cli_loop():
         # prevent exiting unless requested explicitly
         if e.args and e.args[0] == module["cli"]:
             raise SystemExit()
+    except Exception as e:
+        exception("Command invocation failed", exc_info=e)
 
 
 def cli():

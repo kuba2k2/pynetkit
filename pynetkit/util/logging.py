@@ -14,6 +14,7 @@ from logging import (
     exception,
     log,
 )
+from threading import Lock
 from time import time
 
 import click
@@ -56,6 +57,7 @@ class LoggingHandler(StreamHandler):
         self.attach()
         sys.excepthook = self.excepthook
         threading.excepthook = self.excepthook
+        self.emit_lock = Lock()
 
     @property
     def level(self):
@@ -104,12 +106,14 @@ class LoggingHandler(StreamHandler):
         self.time_prev += elapsed_current
 
     def emit_raw(self, log_prefix: str, message: str, color: str):
+        self.emit_lock.acquire(timeout=1.0)
         file = sys.stderr if log_prefix in "WEC" else sys.stdout
         if file:
             if self.raw:
                 click.echo(message, file=file)
             else:
                 click.secho(message, file=file, fg=color)
+        self.emit_lock.release()
 
     @staticmethod
     def tb_echo(tb):
