@@ -5,7 +5,7 @@ import click
 
 @click.command()
 def cli():
-    from pynetkit.cli.__main__ import COMMANDS
+    from pynetkit.cli.command import COMMANDS
 
     max_len = max(len(x) for x in COMMANDS)
     for name, (help_str, _) in sorted(COMMANDS.items()):
