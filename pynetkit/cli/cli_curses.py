@@ -267,6 +267,17 @@ class InputWindow:
                     return
                 self.cut_length(line, 1)
 
+            # Help shortcut
+            case "?" if line[max(self.pos - 1, 0) : self.pos + 1] in ["", " ", "  "]:
+                line = line.strip()
+                if line:
+                    line += " --help"
+                else:
+                    line = "help"
+                print("\n" + self.prompt + line)
+                run_command(line)
+                self.set_cursor()
+
             # Unrecognized escape codes (not in Keycodes.MAPPING)
             case str() if ch[0] == "\x1B":
                 warning(f"Unrecognized escape sequence: {ch.encode()}")
