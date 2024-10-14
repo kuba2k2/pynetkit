@@ -2,12 +2,21 @@
 
 import curses
 from curses import A_BOLD
-from logging import info
+from enum import Enum, auto
+from logging import info, warning
 
 from pynetkit.cli.command import run_command
 from pynetkit.util.logging import LoggingHandler
 
 from .keycodes import Keycodes
+
+
+class EscState(Enum):
+    NONE = auto()
+    ESCAPE = auto()
+    FE_SS3 = auto()
+    FE_CSI = auto()
+
 
 COLORS: dict[str, tuple[int, int, int]]
 
@@ -74,6 +83,8 @@ class InputWindow:
     lines: list[str]
     index: int
     pos: int
+    escape_state: EscState
+    escape_code: str
 
     def __init__(self, win: curses.window, title: str = "Command input"):
         win.border()
@@ -84,6 +95,8 @@ class InputWindow:
         self.lines = [""]
         self.index = 0
         self.pos = 0
+        self.escape_state = EscState.NONE
+        self.escape_code = ""
         self.win = win.derwin(1, 1)
         self.win.nodelay(False)
         self.win.addstr(0, 0, self.prompt)
@@ -93,7 +106,54 @@ class InputWindow:
     def run(self) -> None:
         while True:
             ch = self.win.get_wch()
-            self.handle_keypress(ch)
+            ch = self.handle_escape(ch)
+            if ch:
+                self.handle_keypress(ch)
+
+    def handle_escape(self, ch: int | str) -> int | str | None:
+        in_ch = ch
+        if isinstance(ch, str):
+            if len(ch) != 1:
+                return ch
+            ch = ord(ch)
+        match self.escape_state, ch:
+            # process C0 control codes
+            case (_, 0x1B):  # ESC, 0x1B
+                self.escape_state = EscState.ESCAPE
+            case (EscState.NONE, _):
+                return in_ch
+            # process C1 control codes
+            case (EscState.ESCAPE, _) if ch in range(0x40, 0x5F + 1):
+                match ch:
+                    case 0x4E:  # ESC N, 0x8E, SS2
+                        self.escape_state = EscState.NONE
+                    case 0x4F:  # ESC O, 0x8F, SS3
+                        self.escape_state = EscState.FE_SS3
+                    case 0x50:  # ESC P, 0x90, DCS
+                        self.escape_state = EscState.NONE
+                    case 0x5B:  # ESC [, 0x9B, CSI
+                        self.escape_state = EscState.FE_CSI
+                    case 0x5C:  # ESC \, 0x9C, ST
+                        self.escape_state = EscState.NONE
+                    case 0x5D:  # ESC ], 0x9D, OSC
+                        self.escape_state = EscState.NONE
+            # terminate SS3
+            case (EscState.FE_SS3, _):
+                self.escape_state = EscState.NONE
+            # terminate CSI
+            case (EscState.FE_CSI, _) if ch not in range(0x20, 0x3F + 1):
+                self.escape_state = EscState.NONE
+        # store all characters received during escape sequence
+        self.escape_code += in_ch
+        if self.escape_code in Keycodes.MAPPING:
+            # escape sequence found in key mapping, terminate immediately
+            self.escape_state = EscState.NONE
+        if self.escape_state == EscState.NONE:
+            # no longer in the escape sequence (but it was active)
+            code = self.escape_code
+            self.escape_code = ""
+            return code
+        return None
 
     def set_cursor(self) -> None:
         self.win.move(0, len(self.prompt) + self.pos)
@@ -206,6 +266,11 @@ class InputWindow:
                 elif ch == Keycodes.KEY_DC and self.pos >= len(line):
                     return
                 self.cut_length(line, 1)
+
+            # Unrecognized escape codes (not in Keycodes.MAPPING)
+            case str() if ch[0] == "\x1B":
+                warning(f"Unrecognized escape sequence: {ch.encode()}")
+                return
 
             # Any other keys (letters/numbers/etc.)
             case str():

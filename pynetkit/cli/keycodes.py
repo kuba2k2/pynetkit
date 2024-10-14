@@ -53,7 +53,33 @@ elif sys.platform == "linux":
         ALT_BKSP = 504
         ALT_DEL = 478
 
-        MAPPING = {}
+        # https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+        MAPPING = {
+            "\x1b[A": KEY_UP,
+            "\x1b[B": KEY_DOWN,
+            "\x1b[D": KEY_LEFT,
+            "\x1b[C": KEY_RIGHT,
+            "\x7f": KEY_BACKSPACE,
+            "\x08": KEY_BACKSPACE,
+            "\x1b[3~": KEY_DC,
+            "\x1b\x7f": ALT_BKSP,
+            "\x1b\x08": ALT_BKSP,
+            # PuTTY (default settings)
+            "\x1b[1~": KEY_HOME,
+            "\x1b[4~": KEY_END,
+            "\x1bOD": CTL_LEFT,
+            "\x1bOC": CTL_RIGHT,
+            "\x1b\x1b[D": ALT_LEFT,
+            "\x1b\x1b[C": ALT_RIGHT,
+            "\x1b\x1b[3~": ALT_DEL,
+            # xterm
+            "\x1b[H": KEY_HOME,
+            "\x1b[F": KEY_END,
+            "\x1b[1;5D": CTL_LEFT,
+            "\x1b[1;5C": CTL_RIGHT,
+            "\x1b[1;3D": ALT_LEFT,
+            "\x1b[1;3C": ALT_RIGHT,
+        }
 
 else:
     warning("Unknown platform - command line keycodes will not work correctly")
