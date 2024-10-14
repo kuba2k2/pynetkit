@@ -7,6 +7,8 @@ from logging import info
 from pynetkit.cli.command import run_command
 from pynetkit.util.logging import LoggingHandler
 
+from .keycodes import Keycodes
+
 COLORS: dict[str, tuple[int, int, int]]
 
 
@@ -128,6 +130,7 @@ class InputWindow:
 
     def handle_keypress(self, ch: int | str) -> None:
         line = self.lines[self.index]
+        ch = Keycodes.MAPPING.get(ch, ch)
         match ch:
             # Enter key
             case "\n":
@@ -144,10 +147,10 @@ class InputWindow:
                 self.reset_prompt()
 
             # Arrow Up/Down keys
-            case curses.KEY_UP | curses.KEY_DOWN:
-                if ch == curses.KEY_UP and self.index > 0:
+            case Keycodes.KEY_UP | Keycodes.KEY_DOWN:
+                if ch == Keycodes.KEY_UP and self.index > 0:
                     self.index -= 1
-                elif ch == curses.KEY_DOWN and self.index < len(self.lines) - 1:
+                elif ch == Keycodes.KEY_DOWN and self.index < len(self.lines) - 1:
                     self.index += 1
                 else:
                     return
@@ -156,38 +159,38 @@ class InputWindow:
                 self.win.addstr(0, 0, self.prompt + line)
                 self.pos = len(line)
             # Arrow Left/Right keys
-            case curses.KEY_LEFT | curses.KEY_RIGHT:
-                if ch == curses.KEY_LEFT and self.pos > 0:
+            case Keycodes.KEY_LEFT | Keycodes.KEY_RIGHT:
+                if ch == Keycodes.KEY_LEFT and self.pos > 0:
                     self.pos -= 1
-                elif ch == curses.KEY_RIGHT and self.pos < len(line):
+                elif ch == Keycodes.KEY_RIGHT and self.pos < len(line):
                     self.pos += 1
                 else:
                     return
                 self.set_cursor()
 
             # Home
-            case curses.KEY_HOME:
+            case Keycodes.KEY_HOME:
                 self.pos = 0
                 self.set_cursor()
             # Key End
-            case curses.KEY_END:
+            case Keycodes.KEY_END:
                 self.pos = len(line)
                 self.set_cursor()
 
             # Ctrl+Left/Alt+Left
-            case curses.CTL_LEFT | curses.ALT_LEFT:
+            case Keycodes.CTL_LEFT | Keycodes.ALT_LEFT:
                 self.seek_word_left(line)
             # Ctrl+Right/Alt+Right
-            case curses.CTL_RIGHT | curses.ALT_RIGHT:
+            case Keycodes.CTL_RIGHT | Keycodes.ALT_RIGHT:
                 self.seek_word_right(line)
 
             # Ctrl+Backspace/Alt+Backspace
-            case "\x7F" | curses.ALT_BKSP:
+            case Keycodes.CTL_BKSP | Keycodes.ALT_BKSP:
                 pos = self.pos
                 self.seek_word_left(line)
                 self.cut_length(line, pos - self.pos)
             # Ctrl+Delete/Alt+Delete
-            case curses.CTL_DEL | curses.ALT_DEL:
+            case Keycodes.CTL_DEL | Keycodes.ALT_DEL:
                 pos1 = self.pos
                 self.seek_word_right(line)
                 pos2 = self.pos
@@ -195,12 +198,12 @@ class InputWindow:
                 self.cut_length(line, pos2 - pos1)
 
             # Backspace/Delete keys
-            case "\x08" | curses.KEY_DC:
-                if ch == "\x08":
+            case Keycodes.KEY_BACKSPACE | Keycodes.KEY_DC:
+                if ch == Keycodes.KEY_BACKSPACE:
                     if self.pos == 0:
                         return
                     self.pos -= 1
-                elif ch == curses.KEY_DC and self.pos >= len(line):
+                elif ch == Keycodes.KEY_DC and self.pos >= len(line):
                     return
                 self.cut_length(line, 1)
 
@@ -208,7 +211,7 @@ class InputWindow:
             case str():
                 self.lines[self.index] = line[0 : self.pos] + ch + line[self.pos :]
                 self.pos += len(ch)
-                self.win.insch(ch)
+                self.win.insstr(ch)
                 self.win.move(0, len(self.prompt) + self.pos)
             case int():
                 info(f"Key event: {ch}")
