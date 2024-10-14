@@ -58,7 +58,8 @@ class LogWindow:
         win.border()
         win.addstr(0, 2, f" {title} ")
         win.refresh()
-        self.win = win.derwin(1, 1)
+        maxy, maxx = win.getmaxyx()
+        self.win = win.derwin(maxy - 2, maxx - 2, 1, 1)
         self.win.scrollok(True)
         self.win.idlok(True)
         self.win.leaveok(True)
@@ -90,6 +91,13 @@ class InputWindow:
         win.border()
         win.addstr(0, 2, f" {title} ")
         win.refresh()
+        maxy, maxx = win.getmaxyx()
+        self.win = win.derwin(maxy - 2, maxx - 2, 1, 1)
+        self.win.nodelay(False)
+        self.win.addstr(0, 0, self.prompt)
+        self.win.refresh()
+        curses.curs_set(1)
+
         self.logger = LoggingHandler.get()
         self.history = []
         self.lines = [""]
@@ -97,11 +105,6 @@ class InputWindow:
         self.pos = 0
         self.escape_state = EscState.NONE
         self.escape_code = ""
-        self.win = win.derwin(1, 1)
-        self.win.nodelay(False)
-        self.win.addstr(0, 0, self.prompt)
-        self.win.refresh()
-        curses.curs_set(1)
 
     def run(self) -> None:
         while True:
@@ -200,8 +203,8 @@ class InputWindow:
                         self.history.append(line)
                 self.reset_prompt()
                 print("\n" + self.prompt + line)
-                self.win.refresh()
                 run_command(line)
+                self.set_cursor()
             # Ctrl+C
             case "\x03":
                 self.reset_prompt()
