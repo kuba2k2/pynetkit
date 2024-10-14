@@ -27,6 +27,7 @@ VERBOSE = DEBUG // 2
 class LoggingHandler(StreamHandler):
     INSTANCE: "LoggingHandler" = None
     LOG_COLORS = {
+        "": "white",
         "V": "bright_cyan",
         "D": "bright_blue",
         "I": "bright_green",
@@ -56,7 +57,6 @@ class LoggingHandler(StreamHandler):
         self.raw = raw
         self.full_traceback = full_traceback
         self.emitters = []
-        self.emitters_only = False
         self.attach()
         sys.excepthook = self.excepthook
         threading.excepthook = self.excepthook
@@ -82,11 +82,25 @@ class LoggingHandler(StreamHandler):
             logger.removeHandler(h)
         logger.addHandler(self)
 
-    def add_emitter(self, emitter: Callable[[str, str, str], None]):
+    def add_emitter(self, emitter: Callable[[str, str, str, bool], None]):
         self.emitters.append(emitter)
 
     def clear_emitters(self):
         self.emitters.clear()
+
+    def add_level(self, name: str, color: str, level: int):
+        logging.addLevelName(level, name)
+        self.LOG_COLORS[name[0]] = color
+
+    def hook_stdout(self):
+        # hook stdout/stderr write() to capture all messages
+        sys.stdout.write = self.write
+        sys.stderr.write = self.write
+        # also hook click.echo() calls
+        setattr(click.utils, "_default_text_stdout", lambda: sys.stdout)
+        setattr(click.utils, "_default_text_stderr", lambda: sys.stderr)
+        # noinspection PyUnresolvedReferences,PyProtectedMember
+        setattr(click._compat, "_get_windows_console_stream", lambda c, _, __: c)
 
     def emit(self, record: LogRecord) -> None:
         message = record.msg
@@ -99,42 +113,46 @@ class LoggingHandler(StreamHandler):
         else:
             self.emit_string(record.levelname[:1], message)
 
-    def emit_string(self, log_prefix: str, message: str, color: str = None):
+    def emit_string(
+        self,
+        log_prefix: str,
+        message: str,
+        color: str = None,
+        nl: bool = True,
+    ):
         now = time()
         elapsed_total = now - self.time_start
         elapsed_current = now - self.time_prev
 
-        log_color = color or self.LOG_COLORS[log_prefix]
+        color = color or self.LOG_COLORS[log_prefix]
 
-        if self.timed:
-            message = f"{log_prefix} [{elapsed_total:11.3f}] (+{elapsed_current:5.3f}s) {message}"
-        elif not self.raw:
-            message = f"{log_prefix}: {message}"
+        if log_prefix:
+            if self.timed:
+                message = f"{log_prefix} [{elapsed_total:11.3f}] (+{elapsed_current:5.3f}s) {message}"
+            elif not self.raw:
+                message = f"{log_prefix}: {message}"
 
-        self.emit_raw(log_prefix, message, log_color)
-        self.time_prev += elapsed_current
-
-    def emit_raw(self, log_prefix: str, message: str, color: str):
         self.emit_lock.acquire(timeout=1.0)
-        if not self.emitters_only:
-            file = sys.stderr if log_prefix in "WEC" else sys.stdout
+        if sys.stdout.write != self.write:
+            file = sys.stderr if log_prefix and log_prefix in "WEC" else sys.stdout
             if file:
                 if self.raw:
-                    click.echo(message, file=file)
+                    click.echo(message, file=file, nl=nl)
                 else:
-                    click.secho(message, file=file, fg=color)
+                    click.secho(message, file=file, nl=nl, fg=color)
         for emitter in self.emitters:
-            emitter(log_prefix, message, color)
+            emitter(log_prefix, message, color, nl)
         self.emit_lock.release()
 
-    @staticmethod
-    def tb_echo(tb):
-        filename = tb.tb_frame.f_code.co_filename
-        name = tb.tb_frame.f_code.co_name
-        line = tb.tb_lineno
-        graph(1, f'File "{filename}", line {line}, in {name}', loglevel=ERROR)
+        self.time_prev += elapsed_current
 
     def emit_exception(self, e: BaseException, msg: str = None):
+        def tb_echo(echo_tb):
+            filename = echo_tb.tb_frame.f_code.co_filename
+            name = echo_tb.tb_frame.f_code.co_name
+            line = echo_tb.tb_lineno
+            graph(1, f'File "{filename}", line {line}, in {name}', loglevel=ERROR)
+
         original_exc = e
         if msg:
             error(msg)
@@ -147,10 +165,15 @@ class LoggingHandler(StreamHandler):
             if tb:
                 while tb.tb_next:
                     if self.full_traceback:
-                        self.tb_echo(tb)
+                        tb_echo(tb)
                     tb = tb.tb_next
-                self.tb_echo(tb)
+                tb_echo(tb)
             e = e.__context__
+
+    def write(self, s) -> None:
+        if isinstance(s, bytes):
+            s = s.decode("utf-8")
+        self.emit_string("", str(s), nl=False)
 
     def excepthook(self, *args):
         if isinstance(args[0], type):

@@ -1,11 +1,8 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-10.
 
 import curses
-import sys
 from curses import A_BOLD
 from logging import info
-
-import click
 
 from pynetkit.cli.command import run_command
 from pynetkit.util.logging import LoggingHandler
@@ -57,33 +54,16 @@ class LogWindow:
         self.win.refresh()
         y, x = self.win.getmaxyx()
         self.win.move(y - 1, 0)
-        # send logger messages to emitters only (not to stdout/stderr)
+        # hook stdout/stderr and print in the log console
         logger = LoggingHandler.get()
         logger.add_emitter(self.emit_raw)
-        logger.emitters_only = True
-        # hook stdout/stderr write() to capture all messages
-        sys.stdout.write = self.write
-        sys.stderr.write = self.write
-        # also hook click.echo() calls
-        setattr(click.utils, "_default_text_stdout", lambda: sys.stdout)
-        setattr(click.utils, "_default_text_stderr", lambda: sys.stderr)
-        # noinspection PyUnresolvedReferences,PyProtectedMember
-        setattr(click._compat, "_get_windows_console_stream", lambda c, _, __: c)
+        logger.hook_stdout()
 
-    def emit_raw(self, _: str, message: str, color: str) -> None:
-        self.win.addstr(f"{message}\n", color_attr(color))
+    def emit_raw(self, _: str, message: str, color: str, nl: bool) -> None:
+        if nl:
+            message = f"{message}\n"
+        self.win.addstr(message, color_attr(color))
         self.win.refresh()
-
-    def write(self, s) -> None:
-        if isinstance(s, bytes):
-            s = s.decode("utf-8")
-        s = str(s)
-        # s = s.strip("\r\n")
-        # if not s:
-        #     return
-        self.win.addstr(s, color_attr("white"))
-        self.win.refresh()
-        # self.emit_raw("", s, "white")
 
 
 class InputWindow:
@@ -156,7 +136,7 @@ class InputWindow:
                     if not self.history or self.history[-1] != line:
                         self.history.append(line)
                 self.reset_prompt()
-                self.logger.emit_raw("I", "\n" + self.prompt + line, "white")
+                print("\n" + self.prompt + line)
                 self.win.refresh()
                 run_command(line)
             # Ctrl+C

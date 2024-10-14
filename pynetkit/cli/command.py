@@ -6,8 +6,8 @@ from logging import error, exception
 from pynetkit.cli.utils import import_module
 
 COMMANDS = {
-    "help": ("Get help", "pynetkit/cli/commands/help.py"),
-    "exit": ("Quit the program", "pynetkit/cli/commands/exit.py"),
+    "help": ("Get help.", "pynetkit/cli/commands/help.py"),
+    "exit": ("Quit the program.", "pynetkit/cli/commands/exit.py"),
 }
 ALIASES = {
     "?": "help",
