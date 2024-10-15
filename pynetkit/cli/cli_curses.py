@@ -1,9 +1,11 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-10.
 
 import curses
+import curses.panel
 from curses import A_BOLD
 from enum import Enum, auto
 from logging import info, warning
+from typing import Callable
 
 from pynetkit.cli.command import run_command
 from pynetkit.util.logging import LoggingHandler
@@ -53,23 +55,78 @@ def color_attr(name: str):
     return COLORS[name][2]
 
 
-class LogWindow:
-    def __init__(self, win: curses.window, title: str = "Log console"):
-        win.border()
-        win.addstr(0, 2, f" {title} ")
-        win.refresh()
-        maxy, maxx = win.getmaxyx()
-        self.win = win.derwin(maxy - 2, maxx - 2, 1, 1)
+class BaseWindow:
+    TITLE = "Window"
+    border: curses.window
+    win: curses.window
+
+    def _get_size(self, y: int | None, x: int | None) -> tuple[int, int]:
+        maxy, maxx = self.stdscr.getmaxyx()
+        if y is None:
+            y = maxy
+        elif y < 0:
+            y += maxy
+        if x is None:
+            x = maxx
+        elif x < 0:
+            x += maxx
+        return y, x
+
+    def __init__(
+        self,
+        stdscr: curses.window,
+        nlines: int | None,
+        ncols: int | None,
+        y: int,
+        x: int,
+    ):
+        self.stdscr = stdscr
+        self.nlines = nlines
+        self.ncols = ncols
+        self.y = y
+        self.x = x
+        self.__post_init__()
+        self.create()
+
+    def __post_init__(self) -> None:
+        pass
+
+    def create(self) -> None:
+        nlines, ncols = self._get_size(self.nlines, self.ncols)
+        y, x = self._get_size(self.y, self.x)
+        self.border = self.stdscr.subwin(nlines, ncols, y, x)
+        self.border.border()
+        self.border.addstr(0, 2, f" {self.TITLE} ")
+        self.border.refresh()
+        self.win = self.stdscr.subwin(nlines - 2, ncols - 2, y + 1, x + 1)
+        self.win.refresh()
+
+    def resize(self) -> None:
+        # completely destroy the old window and create a new one
+        # after hours of troubleshooting, I have not found a single solution
+        # that would properly (and reliably) handle terminal resizing, without crashing
+        del self.border
+        del self.win
+        self.create()
+
+
+class LogWindow(BaseWindow):
+    TITLE = "Log console"
+
+    def __post_init__(self):
+        # hook stdout/stderr and print in the log console
+        logger = LoggingHandler.get()
+        logger.add_emitter(self.emit_raw)
+        logger.hook_stdout()
+
+    def create(self) -> None:
+        super().create()
         self.win.scrollok(True)
         self.win.idlok(True)
         self.win.leaveok(True)
         self.win.refresh()
         y, x = self.win.getmaxyx()
         self.win.move(y - 1, 0)
-        # hook stdout/stderr and print in the log console
-        logger = LoggingHandler.get()
-        logger.add_emitter(self.emit_raw)
-        logger.hook_stdout()
 
     def emit_raw(self, _: str, message: str, color: str, nl: bool) -> None:
         if nl:
@@ -78,33 +135,27 @@ class LogWindow:
         self.win.refresh()
 
 
-class InputWindow:
+class InputWindow(BaseWindow):
+    TITLE = "Command input"
+
+    on_resize: Callable = None
     prompt: str = "=> "
     history: list[str]
     lines: list[str]
-    index: int
-    pos: int
-    escape_state: EscState
-    escape_code: str
+    index: int = 0
+    pos: int = 0
+    escape_state: EscState = EscState.NONE
+    escape_code: str = ""
 
-    def __init__(self, win: curses.window, title: str = "Command input"):
-        win.border()
-        win.addstr(0, 2, f" {title} ")
-        win.refresh()
-        maxy, maxx = win.getmaxyx()
-        self.win = win.derwin(maxy - 2, maxx - 2, 1, 1)
-        self.win.nodelay(False)
-        self.win.addstr(0, 0, self.prompt)
-        self.win.refresh()
-        curses.curs_set(1)
-
-        self.logger = LoggingHandler.get()
+    def __post_init__(self) -> None:
         self.history = []
         self.lines = [""]
-        self.index = 0
-        self.pos = 0
-        self.escape_state = EscState.NONE
-        self.escape_code = ""
+
+    def create(self) -> None:
+        super().create()
+        self.win.nodelay(False)
+        curses.curs_set(1)
+        self.redraw_prompt()
 
     def run(self) -> None:
         while True:
@@ -160,6 +211,11 @@ class InputWindow:
 
     def set_cursor(self) -> None:
         self.win.move(0, len(self.prompt) + self.pos)
+
+    def redraw_prompt(self) -> None:
+        self.win.clear()
+        self.win.addstr(0, 0, self.prompt + self.lines[self.index])
+        self.set_cursor()
 
     def reset_prompt(self) -> None:
         self.win.clear()
@@ -286,6 +342,11 @@ class InputWindow:
                 warning(f"Unrecognized escape sequence: {ch.encode()}")
                 return
 
+            # Window resize
+            case curses.KEY_RESIZE:
+                if self.on_resize:
+                    self.on_resize()
+
             # Any other keys (letters/numbers/etc.)
             case str():
                 self.lines[self.index] = line[0 : self.pos] + ch + line[self.pos :]
@@ -299,10 +360,15 @@ class InputWindow:
 def main(stdscr: curses.window):
     colors_init()
 
-    stdscr.nodelay(True)
-    y, x = stdscr.getmaxyx()
-    LogWindow(stdscr.subwin(y - 3, x, 0, 0))
-    input_window = InputWindow(stdscr.subwin(3, x, y - 3, 0))
+    def on_resize() -> None:
+        stdscr.clear()
+        log_window.resize()
+        input_window.resize()
+
+    cmd_size = 3
+    log_window = LogWindow(stdscr, nlines=-cmd_size, ncols=None, y=0, x=0)
+    input_window = InputWindow(stdscr, nlines=cmd_size, ncols=None, y=-cmd_size, x=0)
+    input_window.on_resize = on_resize
     input_window.run()
 
 
