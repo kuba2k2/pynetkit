@@ -134,6 +134,15 @@ class InputWindow(BaseWindow):
                 break
         self.set_cursor()
 
+    def run_command(self, line: str) -> None:
+        self.logger.emit_string(
+            log_prefix="",
+            message="\n" + self.prompt + line,
+            color="bright_cyan",
+        )
+        run_command(line)
+        self.set_cursor()
+
     def handle_keypress(self, ch: int | str) -> None:
         line = self.lines[self.index]
         ch = Keycodes.MAPPING.get(ch, ch)
@@ -145,9 +154,7 @@ class InputWindow(BaseWindow):
                     if not self.history or self.history[-1] != line:
                         self.history.append(line)
                 self.reset_prompt()
-                print("\n" + self.prompt + line)
-                run_command(line)
-                self.set_cursor()
+                self.run_command(line)
             # Ctrl+C
             case "\x03":
                 self.reset_prompt()
@@ -220,9 +227,7 @@ class InputWindow(BaseWindow):
                     line += " --help"
                 else:
                     line = "help"
-                print("\n" + self.prompt + line)
-                run_command(line)
-                self.set_cursor()
+                self.run_command(line)
 
             # Unrecognized escape codes (not in Keycodes.MAPPING)
             case str() if ch[0] == "\x1B":

@@ -1,6 +1,5 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-10.
 
-from pynetkit.util.logging import LoggingHandler
 
 from .base import BaseWindow
 
@@ -12,9 +11,8 @@ class LogWindow(BaseWindow):
     def __post_init__(self):
         self.messages = []
         # hook stdout/stderr and print in the log console
-        logger = LoggingHandler.get()
-        logger.add_emitter(self.emit_raw)
-        logger.hook_stdout()
+        self.logger.add_emitter(self.emit_raw)
+        self.logger.hook_stdout()
 
     def create(self) -> None:
         super().create()

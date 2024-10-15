@@ -4,6 +4,8 @@ import curses
 import curses.panel
 from curses import A_BOLD
 
+from pynetkit.util.logging import LoggingHandler
+
 COLORS: dict[str, tuple[int, int, int]]
 
 
@@ -60,6 +62,7 @@ class BaseWindow:
         y: int,
         x: int,
     ):
+        self.logger = LoggingHandler.get()
         self.stdscr = stdscr
         self.nlines = nlines
         self.ncols = ncols
