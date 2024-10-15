@@ -112,8 +112,10 @@ class BaseWindow:
 
 class LogWindow(BaseWindow):
     TITLE = "Log console"
+    messages: list[tuple[str, int, int]]
 
     def __post_init__(self):
+        self.messages = []
         # hook stdout/stderr and print in the log console
         logger = LoggingHandler.get()
         logger.add_emitter(self.emit_raw)
@@ -127,12 +129,27 @@ class LogWindow(BaseWindow):
         self.win.refresh()
         y, x = self.win.getmaxyx()
         self.win.move(y - 1, 0)
+        draw_messages = []
+        draw_lines = 0
+        for message, attr, lines in reversed(self.messages):
+            draw_messages.append((message, attr))
+            draw_lines += lines
+            if draw_lines > y - 2:
+                break
+        for message, attr in reversed(draw_messages):
+            self.win.addstr(message, attr)
+        if self.messages:
+            self.win.refresh()
 
     def emit_raw(self, _: str, message: str, color: str, nl: bool) -> None:
         if nl:
             message = f"{message}\n"
-        self.win.addstr(message, color_attr(color))
+        attr = color_attr(color)
+        self.win.addstr(message, attr)
         self.win.refresh()
+        self.messages.append((message, attr, message.count("\n")))
+        if len(self.messages) > 1000:
+            self.messages = self.messages[-1000:]
 
 
 class InputWindow(BaseWindow):
@@ -160,6 +177,8 @@ class InputWindow(BaseWindow):
     def run(self) -> None:
         while True:
             ch = self.win.get_wch()
+            if ch == "\x00":
+                continue
             ch = self.handle_escape(ch)
             if ch:
                 self.handle_keypress(ch)
@@ -220,6 +239,7 @@ class InputWindow(BaseWindow):
     def reset_prompt(self) -> None:
         self.win.clear()
         self.win.addstr(0, 0, self.prompt)
+        self.win.refresh()
         self.lines = self.history + [""]
         self.index = len(self.history)
         self.pos = 0
