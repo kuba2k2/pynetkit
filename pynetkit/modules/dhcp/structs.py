@@ -10,7 +10,6 @@ from datastruct import NETWORK, DataStruct, datastruct
 from datastruct.adapters.network import ipv4_field, mac_field
 from datastruct.adapters.time import timedelta_field
 from datastruct.fields import (
-    align,
     built,
     cond,
     const,
@@ -81,12 +80,12 @@ class DhcpPacket(DataStruct):
     hardware_alen: int = const(6)(field("B"))
     hops: int = field("b", default=0)
     transaction_id: int = field("I", default_factory=lambda: randint(0, 0xFFFFFFFF))
-    seconds_elapsed: timedelta = timedelta_field("H")
+    seconds_elapsed: timedelta = timedelta_field("H", default=timedelta(0))
     bootp_flags: DhcpBootpFlags = field("H", default=0)
-    client_ip_address: IPv4Address = ipv4_field()
-    your_ip_address: IPv4Address = ipv4_field()
-    server_ip_address: IPv4Address = ipv4_field()
-    gateway_ip_address: IPv4Address = ipv4_field()
+    client_ip_address: IPv4Address = ipv4_field(default=IPv4Address(0))
+    your_ip_address: IPv4Address = ipv4_field(default=IPv4Address(0))
+    server_ip_address: IPv4Address = ipv4_field(default=IPv4Address(0))
+    gateway_ip_address: IPv4Address = ipv4_field(default=IPv4Address(0))
     client_mac_address: MAC = mac_field()
     _1: ... = padding(10)
     server_host_name: str = text(64, default="")
@@ -96,7 +95,6 @@ class DhcpPacket(DataStruct):
         last=lambda ctx: ctx.P.item.option == 255,
         default_factory=lambda: [DhcpOption(DhcpOptionType.END)],
     )(subfield())
-    _2: ... = align(16)
 
     def __contains__(self, type: DhcpOptionType) -> bool:
         for option in self.options:
