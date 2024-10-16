@@ -6,7 +6,7 @@ from enum import Enum, auto
 from logging import info, warning
 from typing import Callable
 
-from pynetkit.cli.command import run_command
+from pynetkit.cli.command import run_command, run_completion
 
 from .base import BaseWindow
 from .input_keycodes import Keycodes
@@ -221,13 +221,47 @@ class InputWindow(BaseWindow):
                 self.cut_length(line, 1)
 
             # Help shortcut
-            case "?" if line[max(self.pos - 1, 0) : self.pos + 1] in ["", " ", "  "]:
-                line = line.strip()
+            case "?" if not line[max(self.pos - 1, 0) : self.pos + 1].strip():
+                line = line[0 : self.pos].strip()
                 if line:
                     line += " --help"
                 else:
                     line = "help"
                 self.run_command(line)
+
+            # Completion shortcut
+            case "\x09":
+                line_part = line[0 : self.pos]
+                completions = run_completion(line_part)
+                if completions is None:
+                    # completion is not valid, do nothing
+                    return
+                completions = sorted(completions)
+                completion = ""
+                _, _, incomplete = line_part.rpartition(" ")
+                if len(completions) > 1:
+                    # completion returned multiple items
+                    comp = "\t".join(completions)
+                    self.logger.emit_string(
+                        log_prefix="",
+                        message="\n" + self.prompt + line,
+                        color="magenta",
+                    )
+                    print(comp)
+                    return
+                if len(completions) == 0:
+                    # completion is at word boundary, add a whitespace
+                    if line_part[-1:].strip():
+                        # only add it if not there already
+                        completion = " "
+                else:
+                    # completion returned one valid item, use it
+                    completion = completions[0][len(incomplete) :] + " "
+                # add the completion to the command
+                self.lines[self.index] = line_part + completion + line[self.pos :]
+                self.pos += len(completion)
+                self.win.insstr(completion)
+                self.set_cursor()
 
             # Unrecognized escape codes (not in Keycodes.MAPPING)
             case str() if ch[0] == "\x1B":
@@ -244,6 +278,6 @@ class InputWindow(BaseWindow):
                 self.lines[self.index] = line[0 : self.pos] + ch + line[self.pos :]
                 self.pos += len(ch)
                 self.win.insstr(ch)
-                self.win.move(0, len(self.prompt) + self.pos)
+                self.set_cursor()
             case int():
                 info(f"Key event: {ch}")
