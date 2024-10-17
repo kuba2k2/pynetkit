@@ -3,6 +3,25 @@
 
 from .base import BaseWindow
 
+ANSI_TO_COLOR = {
+    "30": "black",
+    "31": "red",
+    "33": "yellow",
+    "32": "green",
+    "34": "blue",
+    "35": "magenta",
+    "36": "cyan",
+    "37": "white",
+    "90": "bright_black",
+    "91": "bright_red",
+    "92": "bright_green",
+    "93": "bright_yellow",
+    "94": "bright_blue",
+    "95": "bright_magenta",
+    "96": "bright_cyan",
+    "97": "bright_white",
+}
+
 
 class LogWindow(BaseWindow):
     TITLE = "Log console"
@@ -30,7 +49,7 @@ class LogWindow(BaseWindow):
             if draw_lines > y - 2:
                 break
         for message, attr in reversed(draw_messages):
-            self.win.addstr(message, attr)
+            self.addstr(message, attr)
         if self.messages:
             self.win.refresh()
 
@@ -38,8 +57,30 @@ class LogWindow(BaseWindow):
         if nl:
             message = f"{message}\n"
         attr = self.color_attr(color)
-        self.win.addstr(message, attr)
+        self.addstr(message, attr)
         self.win.refresh()
         self.messages.append((message, attr, message.count("\n")))
         if len(self.messages) > 1000:
             self.messages = self.messages[-1000:]
+
+    def _process_color(self, message: str, attr: int, reset: int) -> tuple[str, int]:
+        code, _, rest = message[1:].partition("m")
+        if code in ANSI_TO_COLOR:
+            message = rest
+            attr = self.color_attr(ANSI_TO_COLOR[code])
+        elif code in ["0", "39"]:
+            message = rest
+            attr = reset
+        return message, attr
+
+    def addstr(self, message: str, attr: int) -> None:
+        reset = attr
+        if "\x1b" not in message:
+            self.win.addstr(message, attr)
+            return
+        for message in message.split("\x1b"):
+            if not message:
+                continue
+            if len(message) >= 3 and message[0] == "[" and "m" in message[2:4]:
+                message, attr = self._process_color(message, attr, reset)
+            self.win.addstr(message, attr)

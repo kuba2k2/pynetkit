@@ -1,11 +1,15 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-9.
 
 import asyncio
+import re
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import click
 from click import Context
+from colorama import Fore
+from prettytable import PrettyTable
+from prettytable.colortable import ColorTable, Themes
 
 T = TypeVar("T")
 
@@ -58,3 +62,31 @@ def fetch_by_index(ctx: Context, items: list[T], title: str) -> T:
     if (index - 1) not in range(len(items)):
         raise ValueError(f"No such {title}, valid indexes are 1..{len(items)}")
     return items[index - 1]
+
+
+def config_table(
+    title: str,
+    *args: tuple[Any, Any],
+    no_top: bool = False,
+    color: bool = False,
+) -> None:
+    if color:
+        table = ColorTable(["Key", "Value"], theme=Themes.OCEAN_DEEP)
+    else:
+        table = PrettyTable(["Key", "Value"])
+    table.title = title
+    table.header = False
+    table.align = "l"
+    for key, value in args:
+        if key == "" and value == "":
+            continue
+        if color:
+            # don't use color for values
+            table.add_row([key, Fore.RESET + str(value) + Fore.RESET])
+        else:
+            table.add_row([key, value])
+    result = table.get_string()
+    if no_top:
+        result, _ = re.subn(r"\+-+\+", "", result, 1)
+        result = result.strip()
+    print(result)
