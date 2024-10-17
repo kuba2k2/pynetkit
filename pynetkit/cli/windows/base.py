@@ -13,21 +13,21 @@ def colors_init():
     global COLORS
     # name: (fg, curses_pair, curses_attr)
     COLORS = {
-        "black": (curses.COLOR_BLACK, 0, curses.color_pair(0)),  # ANSI 0
-        "blue": (curses.COLOR_BLUE, 4, curses.color_pair(4)),  # ANSI 1
-        "green": (curses.COLOR_GREEN, 2, curses.color_pair(2)),  # ANSI 2
-        "cyan": (curses.COLOR_CYAN, 6, curses.color_pair(6)),  # ANSI 3
-        "red": (curses.COLOR_RED, 1, curses.color_pair(1)),  # ANSI 4
-        "magenta": (curses.COLOR_MAGENTA, 5, curses.color_pair(5)),  # ANSI 5
-        "yellow": (curses.COLOR_YELLOW, 3, curses.color_pair(3)),  # ANSI 6
-        "white": (curses.COLOR_WHITE, 7, curses.color_pair(7)),  # ANSI 7
+        "black": (curses.COLOR_BLACK, 0, curses.color_pair(0)),
+        "red": (curses.COLOR_RED, 1, curses.color_pair(1)),
+        "yellow": (curses.COLOR_YELLOW, 3, curses.color_pair(3)),
+        "green": (curses.COLOR_GREEN, 2, curses.color_pair(2)),
+        "blue": (curses.COLOR_BLUE, 4, curses.color_pair(4)),
+        "magenta": (curses.COLOR_MAGENTA, 5, curses.color_pair(5)),
+        "cyan": (curses.COLOR_CYAN, 6, curses.color_pair(6)),
+        "white": (curses.COLOR_WHITE, 7, curses.color_pair(7)),
         "bright_black": (curses.COLOR_BLACK, 0, curses.color_pair(0) | A_BOLD),
-        "bright_blue": (curses.COLOR_BLUE, 4, curses.color_pair(4) | A_BOLD),
-        "bright_green": (curses.COLOR_GREEN, 2, curses.color_pair(2) | A_BOLD),
-        "bright_cyan": (curses.COLOR_CYAN, 6, curses.color_pair(6) | A_BOLD),
         "bright_red": (curses.COLOR_RED, 1, curses.color_pair(1) | A_BOLD),
-        "bright_magenta": (curses.COLOR_MAGENTA, 5, curses.color_pair(5) | A_BOLD),
+        "bright_green": (curses.COLOR_GREEN, 2, curses.color_pair(2) | A_BOLD),
         "bright_yellow": (curses.COLOR_YELLOW, 3, curses.color_pair(3) | A_BOLD),
+        "bright_blue": (curses.COLOR_BLUE, 4, curses.color_pair(4) | A_BOLD),
+        "bright_magenta": (curses.COLOR_MAGENTA, 5, curses.color_pair(5) | A_BOLD),
+        "bright_cyan": (curses.COLOR_CYAN, 6, curses.color_pair(6) | A_BOLD),
         "bright_white": (curses.COLOR_WHITE, 7, curses.color_pair(7) | A_BOLD),
     }
     curses.use_default_colors()

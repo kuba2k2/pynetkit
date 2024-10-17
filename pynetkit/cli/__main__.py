@@ -46,11 +46,18 @@ VERBOSITY_LEVEL = {
     help="Output logging messages with no additional styling",
     is_flag=True,
 )
+@click.option(
+    "-s",
+    "--simple",
+    help="Use the simple CLI (instead of curses-based TUI)",
+    is_flag=True,
+)
 def cli_entrypoint(
     verbose: int,
     traceback: bool,
     timed: bool,
     raw_log: bool,
+    simple: bool,
 ):
     if verbose == 0 and "LTCHIPTOOL_VERBOSE" in os.environ:
         verbose = int(os.environ["LTCHIPTOOL_VERBOSE"])
@@ -60,7 +67,7 @@ def cli_entrypoint(
     logger.raw = raw_log
     logger.full_traceback = traceback
 
-    if sys.stdout.isatty():
+    if sys.stdout.isatty() and not simple:
         cli_curses()
     else:
         cli_simple()
