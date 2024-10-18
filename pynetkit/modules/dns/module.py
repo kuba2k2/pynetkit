@@ -8,7 +8,7 @@ from dnslib.proxy import ProxyResolver
 from dnslib.server import BaseResolver, DNSHandler, DNSServer
 
 from pynetkit.modules.base import ModuleBase
-from pynetkit.util import matches
+from pynetkit.util.misc import matches
 
 from .events import DnsQueryEvent
 

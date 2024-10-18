@@ -5,7 +5,7 @@ import cloup
 
 from pynetkit import get_version
 from pynetkit.cli.command import run_command
-from pynetkit.cli.utils import mce
+from pynetkit.cli.util.mce import mce
 
 from .base import CONTEXT_SETTINGS, BaseCommandModule
 

@@ -1,5 +1,11 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-9.
 
+import colorama
+
+# run and then hijack init() so that streams don't get re-wrapped
+colorama.init()
+colorama.init = lambda *_, **__: None
+
 import os
 import sys
 from logging import DEBUG, INFO, exception

@@ -6,7 +6,7 @@ from enum import Enum, auto
 from socket import socket
 from typing import IO
 
-from pynetkit.util import matches
+from pynetkit.util.misc import matches
 
 
 class SocketIO(IO[bytes], ABC):

@@ -1,7 +1,6 @@
-#  Copyright (c) Kuba Szczodrzyński 2024-10-9.
+#  Copyright (c) Kuba Szczodrzyński 2024-10-18.
 
 import re
-from pathlib import Path
 from typing import Any
 
 import click
@@ -39,19 +38,6 @@ def mc(value: str) -> str:
 def mce(value: str) -> None:
     # multi-color echo :)
     click.echo(mc(value))
-
-
-def import_module(filename: str) -> dict:
-    ns = {}
-    fn = Path(__file__).parents[2] / filename
-    mp = filename.rpartition("/")[0].replace("/", ".")
-    mn = fn.stem
-    with open(fn) as f:
-        code = compile(f.read(), fn, "exec")
-        ns["__file__"] = fn
-        ns["__name__"] = f"{mp}.{mn}"
-        eval(code, ns, ns)
-    return ns
 
 
 def config_table(

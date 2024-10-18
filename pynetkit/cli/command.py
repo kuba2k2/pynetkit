@@ -6,8 +6,9 @@ from logging import error, exception
 from click import BaseCommand
 from click.shell_completion import ShellComplete
 
+from pynetkit.util.misc import import_module
+
 from .commands.base import BaseCommandModule
-from .utils import import_module
 
 COMMANDS: dict[str, tuple[str, str | BaseCommandModule]] = {
     "help": ("Get help.", "pynetkit/cli/commands/help.py"),
