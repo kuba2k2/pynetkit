@@ -247,7 +247,7 @@ class InputWindow(BaseWindow):
                         message="\n" + self.prompt + line,
                         color="magenta",
                     )
-                    print(comp)
+                    self.logger.emit_string(log_prefix="", message=comp)
                     return
                 if len(completions) == 0:
                     # completion is at word boundary, add a whitespace

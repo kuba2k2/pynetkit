@@ -89,4 +89,4 @@ def config_table(
     if no_top:
         result, _ = re.subn(r"\+-+\+", "", result, 1)
         result = result.strip()
-    print(result)
+    click.echo(result)

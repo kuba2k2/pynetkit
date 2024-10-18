@@ -71,6 +71,8 @@ class LogWindow(BaseWindow):
         elif code in ["0", "39"]:
             message = rest
             attr = reset
+        elif code.isnumeric():
+            message = rest
         return message, attr
 
     def addstr(self, message: str, attr: int) -> None:

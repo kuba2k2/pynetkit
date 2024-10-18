@@ -92,15 +92,16 @@ class LoggingHandler(StreamHandler):
         logging.addLevelName(level, name)
         self.LOG_COLORS[name[0]] = color
 
+    # noinspection PyUnresolvedReferences,PyProtectedMember
     def hook_stdout(self):
         # hook stdout/stderr write() to capture all messages
         sys.stdout.write = self.write
         sys.stderr.write = self.write
-        # also hook click.echo() calls
+        # also add hooks for click.echo() calls
         setattr(click.utils, "_default_text_stdout", lambda: sys.stdout)
         setattr(click.utils, "_default_text_stderr", lambda: sys.stderr)
-        # noinspection PyUnresolvedReferences,PyProtectedMember
         setattr(click._compat, "_get_windows_console_stream", lambda c, _, __: c)
+        setattr(click.utils, "auto_wrap_for_ansi", lambda s: s)
 
     def emit(self, record: LogRecord) -> None:
         message = record.msg
