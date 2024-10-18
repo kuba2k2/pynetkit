@@ -52,12 +52,19 @@ VERBOSITY_LEVEL = {
     help="Use the simple CLI (instead of curses-based TUI)",
     is_flag=True,
 )
+@click.option(
+    "-P",
+    "--pycharm-debug",
+    help="Connect to a PyCharm/IntelliJ debugger on 127.0.0.1:1234",
+    is_flag=True,
+)
 def cli_entrypoint(
     verbose: int,
     traceback: bool,
     timed: bool,
     raw_log: bool,
     simple: bool,
+    pycharm_debug: bool,
 ):
     if verbose == 0 and "LTCHIPTOOL_VERBOSE" in os.environ:
         verbose = int(os.environ["LTCHIPTOOL_VERBOSE"])
@@ -66,6 +73,11 @@ def cli_entrypoint(
     logger.timed = timed
     logger.raw = raw_log
     logger.full_traceback = traceback
+
+    if pycharm_debug:
+        import pydevd_pycharm
+
+        pydevd_pycharm.settrace("127.0.0.1", port=1234, suspend=False)
 
     if sys.stdout.isatty() and not simple:
         cli_curses()
