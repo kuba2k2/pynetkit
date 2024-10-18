@@ -27,6 +27,7 @@ windows-curses = {version = "^2.3.3", platform = "win32"}
 prettytable = "^3.10.2"
 colorama = "^0.4.6"
 cloup = "^3.0.5"
+importlib-metadata = "*"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.1.0"

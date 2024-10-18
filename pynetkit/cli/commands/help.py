@@ -2,10 +2,10 @@
 
 import click
 import cloup
-from colorama import Fore
 
 from pynetkit import get_version
 from pynetkit.cli.command import run_command
+from pynetkit.cli.utils import mce
 
 from .base import CONTEXT_SETTINGS, BaseCommandModule
 
@@ -18,20 +18,12 @@ def cli(command: list[str]):
     if command:
         run_command(" ".join(command) + " --help")
     else:
-        click.secho(f"pynetkit CLI v{get_version()}\n", fg="bright_green")
-        click.secho("Commands:", fg="bright_white")
+        mce(f"§apynetkit CLI §8v{get_version()}§r\n")
+        mce("§fCommands:§r")
         max_len = max(len(x) for x in COMMANDS)
         for name, (help_str, _) in sorted(COMMANDS.items()):
             padding = max_len - len(name)
-            click.echo(
-                f"  {Fore.LIGHTYELLOW_EX + name + Fore.RESET}"
-                f"{' ' * padding}"
-                f"  {help_str}"
-            )
+            mce(f"  §e{name}§r{' ' * padding}  {help_str}")
 
 
-class CommandModule(BaseCommandModule):
-    CLI = cli
-
-
-COMMAND = CommandModule()
+COMMAND = BaseCommandModule(cli)

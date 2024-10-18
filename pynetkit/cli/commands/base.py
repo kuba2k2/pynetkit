@@ -77,9 +77,11 @@ def index_option(
 
 
 class BaseCommandModule:
-    CLI: Group = None
+    CLI: BaseCommand = None
 
-    def __init__(self):
+    def __init__(self, cli: BaseCommand = None):
+        if cli:
+            self.CLI = cli
         self._add_help(self.CLI)
 
     def _add_help(self, command: BaseCommand) -> None:
@@ -105,7 +107,7 @@ class BaseCommandModule:
         click.echo(ctx.get_help(), color=ctx.color)
         ctx.exit()
 
-    def config_get(self) -> dict:
+    def config_get(self) -> dict | list:
         return {}
 
     def config_get_init(self) -> list[str]:

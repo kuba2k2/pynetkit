@@ -13,7 +13,7 @@ def colors_init():
     global COLORS
     # name: (fg, curses_pair, curses_attr)
     COLORS = {
-        "black": (curses.COLOR_BLACK, 0, curses.color_pair(0)),
+        "black": (curses.COLOR_BLACK, 8, curses.color_pair(8)),
         "red": (curses.COLOR_RED, 1, curses.color_pair(1)),
         "yellow": (curses.COLOR_YELLOW, 3, curses.color_pair(3)),
         "green": (curses.COLOR_GREEN, 2, curses.color_pair(2)),
@@ -21,7 +21,7 @@ def colors_init():
         "magenta": (curses.COLOR_MAGENTA, 5, curses.color_pair(5)),
         "cyan": (curses.COLOR_CYAN, 6, curses.color_pair(6)),
         "white": (curses.COLOR_WHITE, 7, curses.color_pair(7)),
-        "bright_black": (curses.COLOR_BLACK, 0, curses.color_pair(0) | A_BOLD),
+        "bright_black": (curses.COLOR_BLACK, 8, curses.color_pair(8) | A_BOLD),
         "bright_red": (curses.COLOR_RED, 1, curses.color_pair(1) | A_BOLD),
         "bright_green": (curses.COLOR_GREEN, 2, curses.color_pair(2) | A_BOLD),
         "bright_yellow": (curses.COLOR_YELLOW, 3, curses.color_pair(3) | A_BOLD),

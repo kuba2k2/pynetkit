@@ -10,8 +10,4 @@ def cli():
     raise SystemExit(cli)
 
 
-class CommandModule(BaseCommandModule):
-    CLI = cli
-
-
-COMMAND = CommandModule()
+COMMAND = BaseCommandModule(cli)
