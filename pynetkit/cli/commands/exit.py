@@ -1,8 +1,17 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-9.
 
-import click
+import cloup
+
+from .base import CONTEXT_SETTINGS, BaseCommandModule
 
 
-@click.command()
+@cloup.command(context_settings=CONTEXT_SETTINGS)
 def cli():
     raise SystemExit(cli)
+
+
+class CommandModule(BaseCommandModule):
+    CLI = cli
+
+
+COMMAND = CommandModule()

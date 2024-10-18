@@ -150,7 +150,7 @@ class InputWindow(BaseWindow):
             # Enter key
             case "\n":
                 if line and line[0] != " ":
-                    line = line.strip()
+                    line = line.lstrip()
                     if not self.history or self.history[-1] != line:
                         self.history.append(line)
                 self.reset_prompt()

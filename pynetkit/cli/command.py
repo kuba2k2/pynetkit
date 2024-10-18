@@ -6,9 +6,10 @@ from logging import error, exception
 from click import BaseCommand
 from click.shell_completion import ShellComplete
 
-from pynetkit.cli.utils import import_module
+from .commands.base import BaseCommandModule
+from .utils import import_module
 
-COMMANDS = {
+COMMANDS: dict[str, tuple[str, str | BaseCommandModule]] = {
     "help": ("Get help.", "pynetkit/cli/commands/help.py"),
     "exit": ("Quit the program.", "pynetkit/cli/commands/exit.py"),
 }
@@ -17,7 +18,26 @@ ALIASES = {
     "q": "exit",
     "quit": "exit",
 }
-IGNORE_COMPLETIONS = ["?", "--help", "-h", "help"]
+
+
+def get_module(cmd: str, no_import: bool = False) -> BaseCommandModule | None:
+    # discard invalid commands
+    if cmd not in COMMANDS:
+        error(f"No such command: {cmd}")
+        return None
+    # find command entrypoint
+    help_str, module = COMMANDS[cmd]
+    # import module if not imported yet
+    if isinstance(module, str):
+        if no_import:
+            return None
+        try:
+            module = import_module(module)["COMMAND"]
+        except Exception as e:
+            exception("Module import failed", exc_info=e)
+            return None
+        COMMANDS[cmd] = (help_str, module)
+    return module
 
 
 def get_command(line: str) -> tuple[BaseCommand | None, str, list[str]]:
@@ -29,22 +49,12 @@ def get_command(line: str) -> tuple[BaseCommand | None, str, list[str]]:
     # map command aliases
     if cmd in ALIASES:
         cmd = ALIASES[cmd]
-    # discard invalid commands
-    if cmd not in COMMANDS:
-        error(f"No such command: {cmd}")
+    # get command module
+    module = get_module(cmd)
+    if not module:
         return None, cmd, []
-    # find command entrypoint
-    help_str, module = COMMANDS[cmd]
-    # import module if not imported yet
-    if isinstance(module, str):
-        try:
-            module = import_module(module)
-        except Exception as e:
-            exception("Module import failed", exc_info=e)
-            return None, cmd, []
-        COMMANDS[cmd] = (help_str, module)
     # make sure it has a CLI
-    if "cli" not in module:
+    if not module.CLI:
         error(f"Module '{cmd}' does not have a CLI")
         return None, cmd, []
     # otherwise process the command line arguments
@@ -52,7 +62,7 @@ def get_command(line: str) -> tuple[BaseCommand | None, str, list[str]]:
         args = shlex.split(args)
     else:
         args = []
-    return module["cli"], cmd, args
+    return module.CLI, cmd, args
 
 
 def run_command(line: str) -> None:
@@ -92,11 +102,7 @@ def run_completion(line: str) -> list[str] | None:
             # also complete options, if cursor is at a whitespace
             completions += comp.get_completions(args, incomplete + "-")
         # skip non-plain items and ignored completions
-        return [
-            item.value
-            for item in completions
-            if item.type == "plain" and item.value not in IGNORE_COMPLETIONS
-        ]
+        return [item.value for item in completions if item.type == "plain"]
     except SystemExit:
         pass
     except Exception as e:
