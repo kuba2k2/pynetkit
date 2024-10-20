@@ -13,11 +13,14 @@ from .commands.base import BaseCommandModule
 COMMANDS: dict[str, tuple[str, str | BaseCommandModule]] = {
     "help": ("Get help.", "pynetkit/cli/commands/help.py"),
     "exit": ("Quit the program.", "pynetkit/cli/commands/exit.py"),
+    "config": ("Load/save module configuration.", "pynetkit/cli/commands/config.py"),
 }
 ALIASES = {
     "?": "help",
     "q": "exit",
     "quit": "exit",
+    "conf": "config",
+    "cfg": "config",
 }
 
 

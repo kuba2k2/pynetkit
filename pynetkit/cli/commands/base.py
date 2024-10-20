@@ -7,6 +7,8 @@ import click
 from click import BaseCommand, Group
 from cloup import Context, HelpFormatter, HelpTheme
 
+from pynetkit.cli.config import Config
+
 T = TypeVar("T")
 
 CONTEXT_SETTINGS = Context.settings(
@@ -107,20 +109,8 @@ class BaseCommandModule:
         click.echo(ctx.get_help(), color=ctx.color)
         ctx.exit()
 
-    def config_get(self) -> dict | list:
-        return {}
+    def config_get(self) -> Config.Module:
+        return Config.Module()
 
-    def config_get_init(self) -> list[str]:
-        return []
-
-    def config_commands(self, config: dict) -> Generator[str, None, None]:
+    def config_commands(self, config: Config.Module) -> Generator[str, None, None]:
         yield from ()
-
-    def config_set(self, config: dict) -> None:
-        from pynetkit.cli.command import run_command
-
-        if not self.CLI:
-            return
-        for command in self.config_commands(config):
-            command = f"{self.CLI.name} {command}"
-            run_command(command)

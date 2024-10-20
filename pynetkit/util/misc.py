@@ -2,6 +2,7 @@
 
 import re
 from pathlib import Path
+from typing import Iterable
 
 
 def matches(pattern: str | bytes, value: str | bytes) -> bool:
@@ -29,3 +30,11 @@ def stringify_values(obj):
     if isinstance(obj, (list, set)):
         return [stringify_values(v) for v in obj]
     return str(obj)
+
+
+def filter_dict(obj: dict, keys: Iterable) -> dict:
+    if keys:
+        for key in list(obj):
+            if key not in keys:
+                obj.pop(key)
+    return obj

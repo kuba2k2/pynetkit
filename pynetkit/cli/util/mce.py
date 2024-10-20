@@ -40,6 +40,18 @@ def mce(value: str) -> None:
     click.echo(mc(value))
 
 
+def mce_yaml(value: str) -> None:
+    flags = re.MULTILINE
+    # colorize keys
+    value = re.sub(r"^( *[\w_]+?):", r"§c\1§r:", value, flags=flags)
+    value = re.sub(r"^( *- )([\w_]+?):", r"§f\1§c\2§r:", value, flags=flags)
+    # colorize values
+    value = re.sub(r"§r:( *[\d.:]+?)$", r"§r:§5\1§r", value, flags=flags)
+    value = re.sub(r"§r:( *)(null|true|false)$", r"§r:\1§3\2§r", value, flags=flags)
+    value = re.sub(r"§r:( *[^§\n]+?)$", r"§r:§6\1§r", value, flags=flags)
+    mce(value)
+
+
 def config_table(
     title: str,
     *args: tuple[Any, Any],
