@@ -14,6 +14,7 @@ COMMANDS: dict[str, tuple[str, str | BaseCommandModule]] = {
     "help": ("Get help.", "pynetkit/cli/commands/help.py"),
     "exit": ("Quit the program.", "pynetkit/cli/commands/exit.py"),
     "config": ("Load/save module configuration.", "pynetkit/cli/commands/config.py"),
+    "dhcp": ("Manage the DHCP server.", "pynetkit/cli/commands/modules/dhcp.py"),
 }
 ALIASES = {
     "?": "help",
