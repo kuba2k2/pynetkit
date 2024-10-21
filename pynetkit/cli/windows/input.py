@@ -23,6 +23,7 @@ class InputWindow(BaseWindow):
     TITLE = "Command input"
 
     on_resize: Callable = None
+    on_scroll: Callable[[int], None] = None
     prompt: str = "=> "
     history: list[str]
     lines: list[str]
@@ -39,6 +40,7 @@ class InputWindow(BaseWindow):
         super().create()
         self.win.nodelay(False)
         curses.curs_set(1)
+        curses.mousemask(-1)
         self.redraw_prompt()
 
     def run(self) -> None:
@@ -219,6 +221,43 @@ class InputWindow(BaseWindow):
                 elif ch == Keycodes.KEY_DC and self.pos >= len(line):
                     return
                 self.cut_length(line, 1)
+
+            # PgUp/Shift+PgUp
+            case Keycodes.KEY_PPAGE | Keycodes.KEY_SPREVIOUS:
+                if not self.on_scroll:
+                    return
+                self.on_scroll(10)
+            # PgDn/Shift+PgDn
+            case Keycodes.KEY_NPAGE | Keycodes.KEY_SNEXT:
+                if not self.on_scroll:
+                    return
+                self.on_scroll(-10)
+            # Ctrl+PgUp/Ctrl+PgDn
+            case Keycodes.CTL_PGUP | Keycodes.CTL_PGDN:
+                if not self.on_scroll:
+                    return
+                self.on_scroll(1 if ch == Keycodes.CTL_PGUP else -1)
+
+            # Mouse events (Windows)
+            case curses.KEY_MOUSE:
+                id, x, y, z, bstate = curses.getmouse()
+                if not self.on_scroll:
+                    return
+                # info(f"{id=}, {x=}, {y=}, {z=}, {bstate=}")
+                if bstate == curses.BUTTON4_PRESSED:
+                    # Scroll Up
+                    self.on_scroll(3)
+                elif bstate == curses.BUTTON5_PRESSED:
+                    # Scroll Down
+                    self.on_scroll(-3)
+            # Mouse events (Linux)
+            case str() if "\x1b[<" in ch and ch[-1:] in "mM":
+                if ch[3:].startswith("64;"):
+                    # Scroll Up
+                    self.on_scroll(3)
+                elif ch[3:].startswith("65;"):
+                    # Scroll Down
+                    self.on_scroll(-3)
 
             # Help shortcut
             case "?" if not line[max(self.pos - 1, 0) : self.pos + 1].strip():

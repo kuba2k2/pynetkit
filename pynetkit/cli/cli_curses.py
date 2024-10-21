@@ -20,6 +20,7 @@ def main(stdscr: curses.window):
     log_window = LogWindow(stdscr, nlines=-cmd_size, ncols=None, y=0, x=0)
     input_window = InputWindow(stdscr, nlines=cmd_size, ncols=None, y=-cmd_size, x=0)
     input_window.on_resize = on_resize
+    input_window.on_scroll = log_window.on_scroll
     input_window.run()
 
 

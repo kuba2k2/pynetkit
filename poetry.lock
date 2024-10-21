@@ -123,13 +123,13 @@ files = [
 
 [[package]]
 name = "comtypes"
-version = "1.4.7"
+version = "1.4.8"
 description = "Pure Python COM package"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "comtypes-1.4.7-py3-none-any.whl", hash = "sha256:d46ac2bfb6176eda6b03cd64b9afaa212224ede105054e77aac6bbbd8d9979db"},
-    {file = "comtypes-1.4.7.zip", hash = "sha256:cc4f3cd5db28c6a0c9fce781720192c60b2f198e548fd6dfcfc1d47b6f8ea20f"},
+    {file = "comtypes-1.4.8-py3-none-any.whl", hash = "sha256:773109b12aa0bec630d5b2272dd983cbaa25605a12fc1319f99730c9d0b72f79"},
+    {file = "comtypes-1.4.8.zip", hash = "sha256:bb2286cfb3b96f838307200a85b00b98e1bdebf1e58ec3c28b36b1ccfafac01f"},
 ]
 
 [[package]]
@@ -683,4 +683,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "deffe872a501119dafed7f3dda35dea8253ab96e8fe31f5fbfa69d4123220fe0"
+content-hash = "97d5e79f28fcdacd313cdcc4cc23d1bc6b562a256f7e07a146194a99fb401ee2"
