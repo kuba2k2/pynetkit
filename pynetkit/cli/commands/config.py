@@ -162,8 +162,8 @@ def load(path: Path | None, modules: tuple[str]):
         mce(config.meta.to_mce())
     if not path and previous_path:
         mce(f"§a\nReloaded configuration file §d{config.path}§r.")
-    elif config.path:
-        mce(f"§a\nConfiguration loaded from §d{config.path}§r.")
+    elif config.path or path:
+        mce(f"§a\nConfiguration loaded from §d{config.path or path}§r.")
 
 
 @cloup.command(help="Show commands that make the current config.")

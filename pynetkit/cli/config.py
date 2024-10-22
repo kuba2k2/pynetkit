@@ -57,13 +57,13 @@ class Config:
         *modules: str,
         reverse: bool = False,
     ) -> list[str]:
-        commands: dict[int, list[str]] = {}
+        commands: list[tuple[int, list[str]]] = []
         if not modules and name in self.scripts:
-            commands[10000] = self.scripts[name].commands
+            commands.append((10000, self.scripts[name].commands))
         for module in filter_dict(dict(self.modules), modules).values():
             if name in module.scripts:
-                commands[module.order] = module.scripts[name]
-        return list(c for k, v in sorted(commands.items(), reverse=reverse) for c in v)
+                commands.append((module.order, module.scripts[name]))
+        return list(c for k, v in sorted(commands, reverse=reverse) for c in v)
 
     def update(self) -> None:
         from .command import COMMANDS

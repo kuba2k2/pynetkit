@@ -11,10 +11,13 @@ from pynetkit.util.misc import import_module
 from .commands.base import BaseCommandModule
 
 COMMANDS: dict[str, tuple[str, str | BaseCommandModule]] = {
+    # commands
     "help": ("Get help.", "pynetkit/cli/commands/help.py"),
     "exit": ("Quit the program.", "pynetkit/cli/commands/exit.py"),
     "config": ("Load/save module configuration.", "pynetkit/cli/commands/config.py"),
+    # modules
     "dhcp": ("Manage the DHCP server.", "pynetkit/cli/commands/modules/dhcp.py"),
+    "dns": ("Manage the DNS server.", "pynetkit/cli/commands/modules/dns.py"),
 }
 ALIASES = {
     "?": "help",

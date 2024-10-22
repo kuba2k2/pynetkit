@@ -4,7 +4,6 @@ from ipaddress import IPv4Address
 from typing import Callable
 
 from dnslib import QTYPE, RCODE, RDMAP, RR, DNSQuestion, DNSRecord
-from dnslib.proxy import ProxyResolver
 from dnslib.server import BaseResolver, DNSHandler, DNSServer
 
 from pynetkit.modules.base import ModuleBase
@@ -14,59 +13,46 @@ from .events import DnsQueryEvent
 
 
 class DnsModule(ModuleBase, BaseResolver):
+    PRE_RUN_CONFIG = ["address", "port"]
     # pre-run configuration
-    _address: IPv4Address = None
-    _port: int = None
-    _upstream: IPv4Address = None
+    address: IPv4Address
+    port: int
     # runtime configuration
     dns_db: list[
         tuple[str, str, list[str | RR]] | Callable[[str, str], list[str | RR]]
     ] = None
     # server handle
     _dns: DNSServer | None = None
-    _proxy: ProxyResolver | None = None
 
     def __init__(self):
         super().__init__()
-        self._address = IPv4Address("0.0.0.0")
-        self._port = 53
+        self.address = IPv4Address("0.0.0.0")
+        self.port = 53
         self.dns_db = []
 
-    def configure(
-        self,
-        address: IPv4Address,
-        port: int = 53,
-    ) -> None:
-        if self._dns is not None:
-            raise RuntimeError("Server already running, stop to reconfigure")
-        self._address = address
-        self._port = port
-
-    async def start(self) -> None:
-        self.info(f"Starting DNS server on {self._address}:{self._port}")
+    async def run(self) -> None:
+        self.info(f"Starting DNS server on {self.address}:{self.port}")
         self._dns = DNSServer(
             resolver=self,
-            address=str(self._address),
-            port=self._port,
+            address=str(self.address),
+            port=self.port,
         )
-        self._dns.start_thread()
         # disable dnslib logging
         self._dns.server.logger.logf = lambda *_: None
-
-        if self._upstream:
-            self._proxy = ProxyResolver(
-                address=str(self._upstream),
-                port=53,
-            )
+        while self.should_run and self._dns is not None:
+            self._dns.start()
 
     async def stop(self) -> None:
+        await self.cleanup()
+        await super().stop()
+
+    async def cleanup(self) -> None:
         if self._dns:
             self._dns.stop()
             self._dns.server.server_close()
-            self._dns = None
-        self._proxy = None
+        self._dns = None
 
-    def resolve(self, request: DNSRecord, handler: DNSHandler):
+    def resolve(self, request: DNSRecord, _: DNSHandler | None) -> DNSRecord:
         reply: DNSRecord = request.reply()
         for q in request.questions:
             q: DNSQuestion
@@ -129,13 +115,14 @@ class DnsModule(ModuleBase, BaseResolver):
         upstream: IPv4Address,
         rname: str = ".*",
         rtype: str = ".*",
-    ) -> None:
+    ) -> Callable:
         def handler(qname: str, qtype: str) -> list[RR]:
             if matches(rname, qname) and matches(rtype, qtype):
                 return self.resolve_upstream(upstream, qname, qtype)
             return []
 
         self.dns_db.append(handler)
+        return handler
 
     def clear_records(self) -> None:
         self.dns_db = []

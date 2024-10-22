@@ -42,10 +42,7 @@ def cli(ctx: Context, dhcp: DhcpModule | None):
     if not DHCP:
         warning("No DHCP servers are created")
         return
-    if dhcp:
-        servers = [dhcp]
-    else:
-        servers = DHCP
+    servers = [dhcp] if dhcp else DHCP
 
     for i, dhcp in enumerate(servers):
         if dhcp.hosts:
@@ -73,7 +70,7 @@ def cli(ctx: Context, dhcp: DhcpModule | None):
 
 
 @cloup.command(help="Create new DHCP server(s).")
-@cloup.argument("total", default=0, help="Total number of DHCP servers instances.")
+@cloup.argument("total", default=0, help="Total number of DHCP server instances.")
 def create(total: int = 0):
     if not total:
         dhcp = DhcpModule()
@@ -201,7 +198,7 @@ class CommandModule(BaseCommandModule):
             unload = []
         elif len(DHCP) == 1:
             load = ["dhcp start"] if DHCP[0].is_started else []
-            unload = ["dhcp stop"]
+            unload = ["dhcp stop", "dhcp destroy", "dhcp create"]
         else:
             load = [
                 dhcp.is_started and f"dhcp start -@ {i + 1}"
@@ -209,7 +206,7 @@ class CommandModule(BaseCommandModule):
             ]
             unload = (
                 [f"dhcp stop -@ {i + 1}" for i in range(len(DHCP))]
-                + [f"dhcp destroy -@ 1" for i in range(len(DHCP))]
+                + [f"dhcp destroy -@ 1" for _ in range(len(DHCP))]
                 + ["dhcp create 1"]
             )
         return Config.Module(
