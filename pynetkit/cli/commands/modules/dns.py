@@ -1,6 +1,5 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-21.
 
-import shlex
 from ipaddress import IPv4Address
 from logging import error, warning
 from types import FunctionType
@@ -330,24 +329,14 @@ class CommandModule(BaseCommandModule):
             if item.get("dns_db"):
                 for record in item["dns_db"]:
                     if "answer" in record:
-                        yield shlex.join(
-                            [
-                                "dns",
-                                "set",
-                                record["name"],
-                                record["type"],
-                                *record["answer"],
-                            ]
+                        yield (
+                            f"dns set{index} {record['name']} "
+                            f"{record['type']} " + (" ".join(record["answer"]) or '""')
                         )
                     elif "upstream" in record:
-                        yield shlex.join(
-                            [
-                                "dns",
-                                "upstream",
-                                record["upstream"],
-                                record["name"],
-                                record["type"],
-                            ]
+                        yield (
+                            f"dns upstream{index} {record['upstream']} "
+                            f"{record['name']} {record['type']}"
                         )
 
 
