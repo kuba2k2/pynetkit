@@ -4,6 +4,7 @@ import curses
 import curses.panel
 from enum import Enum, auto
 from logging import info, warning
+from os.path import commonprefix
 from typing import Callable
 
 from pynetkit.cli.command import run_command, run_completion
@@ -281,14 +282,15 @@ class InputWindow(BaseWindow):
                 if len(completions) > 1:
                     # completion returned multiple items
                     comp = "\t".join(completions)
+                    # fill in the common prefix of all completions
+                    completion = commonprefix(completions)[len(incomplete) :]
                     self.logger.emit_string(
                         log_prefix="",
-                        message="\n" + self.prompt + line,
+                        message="\n" + self.prompt + line_part + completion,
                         color="magenta",
                     )
                     self.logger.emit_string(log_prefix="", message=comp)
-                    return
-                if len(completions) == 0:
+                elif len(completions) == 0:
                     # completion is at word boundary, add a whitespace
                     if line_part[-1:].strip():
                         # only add it if not there already
@@ -296,6 +298,8 @@ class InputWindow(BaseWindow):
                 else:
                     # completion returned one valid item, use it
                     completion = completions[0][len(incomplete) :] + " "
+                if not completion:
+                    return
                 # add the completion to the command
                 self.lines[self.index] = line_part + completion + line[self.pos :]
                 self.pos += len(completion)
