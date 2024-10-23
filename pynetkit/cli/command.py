@@ -105,6 +105,8 @@ def run_completion(line: str) -> list[str] | None:
         _, _, incomplete = line[len(cmd) :].rpartition(" ")
         # run completion
         comp = ShellComplete(cli=cli, ctx_args={}, prog_name=cmd, complete_var="")
+        if args and args[-1] == incomplete:
+            args = args[0:-1]
         completions = comp.get_completions(args, incomplete)
         if not incomplete:
             # also complete options, if cursor is at a whitespace

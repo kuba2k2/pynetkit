@@ -1,8 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-18.
 
-from logging import error
 from pathlib import Path
-from typing import Generator
 
 import click
 import cloup
@@ -15,27 +13,25 @@ from pynetkit.util.yml import yaml_dump
 
 from .base import CONTEXT_SETTINGS, BaseCommandModule
 
-PathType = cloup.file_path(readable=True, writable=True, resolve_path=True)
+
+def complete_path(ctx: Context, param, incomplete: str) -> list[str]:
+    configs = Path().glob("*.yaml")
+    return [c.name for c in configs if c.name.startswith(incomplete)]
 
 
-def iter_modules(*names: str) -> Generator[tuple[str, BaseCommandModule], None, None]:
+def complete_module(ctx: Context, param, incomplete: str) -> list[str]:
     from pynetkit.cli.command import COMMANDS
 
-    found = False
+    modules = []
     for name, (_, module) in sorted(COMMANDS.items()):
         if isinstance(module, str):
-            continue
-        if ".modules." not in type(module).__module__:
-            continue
-        if names and name not in names:
-            continue
-        found = True
-        yield name, module
-    if not found:
-        if names:
-            error("No module by this name(s) has been loaded")
+            if "/modules/" not in module:
+                continue
         else:
-            error("No modules have been loaded so far")
+            if ".modules." not in type(module).__module__:
+                continue
+        modules.append(name)
+    return [m for m in modules if m.startswith(incomplete)]
 
 
 @cloup.group(
@@ -111,7 +107,13 @@ def meta(name: str, version: str, author: str):
 
 
 @cloup.command(help="Print the current complete config.")
-@cloup.argument("modules", required=False, nargs=-1, help="Module(s) to include.")
+@cloup.argument(
+    "modules",
+    required=False,
+    nargs=-1,
+    help="Module(s) to include.",
+    shell_complete=complete_module,
+)
 def dump(modules: tuple[str]):
     config = Config.get()
     config.update()
@@ -132,8 +134,20 @@ def dump(modules: tuple[str]):
 
 
 @cloup.command(help="Save the current config to a file.")
-@cloup.argument("path", type=PathType, required=False, help="Path to write to.")
-@cloup.argument("modules", required=False, nargs=-1, help="Module(s) to include.")
+@cloup.argument(
+    "path",
+    type=cloup.file_path(readable=True, writable=True, resolve_path=True),
+    required=False,
+    help="Path to write to.",
+    shell_complete=complete_path,
+)
+@cloup.argument(
+    "modules",
+    required=False,
+    nargs=-1,
+    help="Module(s) to include.",
+    shell_complete=complete_module,
+)
 def save(path: Path | None, modules: tuple[str]):
     config = Config.get()
     config.update()
@@ -151,9 +165,21 @@ def save(path: Path | None, modules: tuple[str]):
 
 
 @cloup.command(help="Load the config from a file, replacing the current one.")
-@cloup.argument("path", type=PathType, required=False, help="Path to load from.")
-@cloup.argument("modules", required=False, nargs=-1, help="Module(s) to include.")
-def load(path: Path | None, modules: tuple[str]):
+@cloup.argument(
+    "path",
+    type=cloup.file_path(exists=True, readable=True, writable=True, resolve_path=True),
+    required=False,
+    help="Path to load from.",
+    shell_complete=complete_path,
+)
+@cloup.argument(
+    "modules",
+    required=False,
+    nargs=-1,
+    help="Module(s) to include.",
+    shell_complete=complete_module,
+)
+def load(path: Path, modules: tuple[str]):
     config = Config.get()
     config.update()
     previous_path = config.path
@@ -167,7 +193,13 @@ def load(path: Path | None, modules: tuple[str]):
 
 
 @cloup.command(help="Show commands that make the current config.")
-@cloup.argument("modules", required=False, nargs=-1, help="Module(s) to include.")
+@cloup.argument(
+    "modules",
+    required=False,
+    nargs=-1,
+    help="Module(s) to include.",
+    shell_complete=complete_module,
+)
 def commands(modules: tuple[str]):
     from pynetkit.cli.command import get_module
 
@@ -202,7 +234,13 @@ def commands(modules: tuple[str]):
 
 
 @cloup.command(help="Reset one or more modules to their default config.")
-@cloup.argument("modules", required=True, nargs=-1, help="Module(s) to include.")
+@cloup.argument(
+    "modules",
+    required=False,
+    nargs=-1,
+    help="Module(s) to include.",
+    shell_complete=complete_module,
+)
 def reset(modules: tuple[str]):
     config = Config.get()
     config.update()
