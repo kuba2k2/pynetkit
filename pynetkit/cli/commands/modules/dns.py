@@ -20,9 +20,7 @@ from pynetkit.cli.commands.base import (
 from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import config_table, mc, mce
 from pynetkit.modules.dns import DnsModule
-from pynetkit.util.logging import LoggingHandler
 
-logger = LoggingHandler.get()
 DNS: list[DnsModule] = [DnsModule()]
 upstream_handlers: dict[Any, tuple[IPv4Address, str, str]] = {}
 
@@ -91,8 +89,8 @@ def create(total: int = 0):
         DNS.append(dns)
         return
     while total > len(DNS):
-        dhcp = DnsModule()
-        DNS.append(dhcp)
+        dns = DnsModule()
+        DNS.append(dns)
     mce(f"§fDNS module(s) created, total: {len(DNS)}§r")
 
 

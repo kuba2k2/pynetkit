@@ -28,9 +28,10 @@ HTTP_METHODS = [
 
 
 class ProxyModule(ModuleBase):
+    PRE_RUN_CONFIG = ["address", "ports"]
     # pre-run configuration
-    _address: IPv4Address = None
-    _ports: dict[int, ProxyProtocol] = None
+    address: IPv4Address
+    ports: dict[int, ProxyProtocol]
     # runtime configuration
     proxy_db: list[
         tuple[ProxySource, ProxyTarget] | Callable[[ProxySource, SocketIO], ProxyTarget]
@@ -41,27 +42,19 @@ class ProxyModule(ModuleBase):
 
     def __init__(self):
         super().__init__()
+        self.address = IPv4Address("0.0.0.0")
+        self.ports = {}
         self.proxy_db = []
         self._threads = []
         self._servers = []
 
-    def configure(
-        self,
-        address: IPv4Address,
-        ports: dict[int, ProxyProtocol],
-    ) -> None:
-        if self._threads:
-            raise RuntimeError("Proxy already running, stop to reconfigure")
-        self._address = address
-        self._ports = ports
-
     # noinspection DuplicatedCode
     async def start(self) -> None:
-        if not self._address:
-            raise RuntimeError("Proxy not configured")
+        if not self.ports:
+            raise RuntimeError("Proxy listen ports not configured")
 
         futures = []
-        for port, protocol in self._ports.items():
+        for port, protocol in self.ports.items():
             future = self.make_future()
             thread = Thread(
                 target=self.proxy_entrypoint,
@@ -83,6 +76,10 @@ class ProxyModule(ModuleBase):
         self._servers.clear()
         self._threads.clear()
 
+    @property
+    def is_started(self) -> bool:
+        return bool(self._threads)
+
     def proxy_entrypoint(
         self,
         future: Future,
@@ -90,9 +87,9 @@ class ProxyModule(ModuleBase):
         protocol: ProxyProtocol,
     ) -> None:
         self.resolve_future(future)
-        self.info(f"Starting {protocol.name} proxy on {self._address}:{port}")
+        self.info(f"Starting {protocol.name} proxy on {self.address}:{port}")
         server = ThreadingTCPServer(
-            server_address=(str(self._address), port),
+            server_address=(str(self.address), port),
             RequestHandlerClass=partial(
                 ProxyHandler,
                 proxy=self,
@@ -100,7 +97,7 @@ class ProxyModule(ModuleBase):
                 protocol=protocol,
             ),
         )
-        self._servers.append(server)
+        server.daemon_threads = True
         server.serve_forever()
 
     def add_proxy(self, source: ProxySource, target: ProxyTarget) -> None:
@@ -208,19 +205,31 @@ class ProxyHandler(BaseRequestHandler):
         else:
             raise ValueError(f"No handler for {source}")
         target = ProxyTarget(target.host, target.port, target.http_proxy)
+        if not target.host:
+            target.host = source.host
         if target.port == 0:
             target.port = source.port
+        if not target.host:
+            raise ValueError(f"Couldn't determine target hostname for {source}")
 
         proxy_path = (
             f"{self.client_address[0]}:{self.client_address[1]} "
             f"-> {source.host}:{source.port} "
+            f"-> {target.host}:{target.port}"
             + (
-                f"-> ({target.http_proxy[0]}:{target.http_proxy[1]})"
+                f" (via {target.http_proxy[0]}:{target.http_proxy[1]})"
                 if target.http_proxy
-                else f"-> {target.host}:{target.port}"
+                else ""
             )
         )
         self.proxy.info(f"Proxy {source.protocol.name}: {proxy_path}")
+
+        if (source.host, source.port) == (target.host, target.port):
+            self.proxy.warning(
+                "Resolved target address same as source address! Bailing out..."
+            )
+            client.close()
+            return
 
         server = socket(AF_INET, SOCK_STREAM)
 
@@ -229,7 +238,7 @@ class ProxyHandler(BaseRequestHandler):
         else:
             server.connect(target.http_proxy)
             if source.protocol == ProxyProtocol.TLS:
-                connect = f"CONNECT {source.host or target.host}:{target.port} HTTP/1.1"
+                connect = f"CONNECT {target.host}:{target.port} HTTP/1.1"
                 server.sendall(f"{connect}\r\n\r\n".encode())
                 io = SocketIO(server)
                 data = io.read_until(b"\r\n\r\n")

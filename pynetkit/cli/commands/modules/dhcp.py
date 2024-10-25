@@ -17,9 +17,7 @@ from pynetkit.cli.commands.base import (
 from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import config_table, mce
 from pynetkit.modules.dhcp import DhcpModule
-from pynetkit.util.logging import LoggingHandler
 
-logger = LoggingHandler.get()
 DHCP: list[DhcpModule] = [DhcpModule()]
 
 

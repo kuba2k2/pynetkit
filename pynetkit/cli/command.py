@@ -18,6 +18,7 @@ COMMANDS: dict[str, tuple[str, str | BaseCommandModule]] = {
     # modules
     "dhcp": ("Manage the DHCP server.", "pynetkit/cli/commands/modules/dhcp.py"),
     "dns": ("Manage the DNS server.", "pynetkit/cli/commands/modules/dns.py"),
+    "proxy": ("Manage the proxy server.", "pynetkit/cli/commands/modules/proxy.py"),
 }
 ALIASES = {
     "?": "help",

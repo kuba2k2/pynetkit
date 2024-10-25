@@ -80,16 +80,26 @@ class ProxySource:
             return False
         return bool(matches(self.host, other.host))
 
+    def __str__(self) -> str:
+        return f"{self.host}:{self.port or '*'} ({self.protocol.name})"
+
 
 @dataclass
 class ProxyTarget:
-    host: str
+    host: str | None
     port: int = 0
     # TODO protocol change option (RAW->TLS, etc)
     # protocol: ProxyProtocol = ProxyProtocol.RAW
     http_proxy: tuple[str, int] = None
 
     def __post_init__(self):
-        if not self.port and ":" in self.host:
+        if not self.port and self.host and ":" in self.host:
             self.host, _, self.port = self.host.rpartition(":")
             self.port = int(self.port)
+
+    def __str__(self) -> str:
+        return f"{self.host or '*'}:{self.port or self.port or '*'}" + (
+            self.http_proxy
+            and f" (via {self.http_proxy[0]}:{self.http_proxy[1]})"
+            or ""
+        )

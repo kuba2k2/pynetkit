@@ -64,7 +64,7 @@ def cli(ctx: Context):
     mce(
         """§fCommands:§r
   §econfig meta §dname §cversion §aauthor§r  Set config metadata before saving.
-  §econfig save§r                      Overwrite the loaded config file.
+  §econfig save§r                      Save the config with previous/default file name.
   §econfig save §dpath§r                 Save the config to §dpath§r.
   §econfig save §dpath§r §cmodule§r...       Save §cmodule§r(s) config to §dpath§r.
   §econfig load§r                      Reload the loaded config file.
