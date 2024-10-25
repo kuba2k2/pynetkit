@@ -224,7 +224,10 @@ class ProxyHandler(BaseRequestHandler):
         )
         self.proxy.info(f"Proxy {source.protocol.name}: {proxy_path}")
 
-        if (source.host, source.port) == (target.host, target.port):
+        if (source.host, source.port) == (target.host, target.port) and target.host in [
+            "localhost",
+            "127.0.0.1",
+        ]:
             self.proxy.warning(
                 "Resolved target address same as source address! Bailing out..."
             )
