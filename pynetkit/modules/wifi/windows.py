@@ -17,7 +17,7 @@ from win32wifi.Win32Wifi import (
 )
 
 from pynetkit.modules.base import module_thread
-from pynetkit.types import NetworkInterface, WifiNetwork
+from pynetkit.types import NetworkAdapter, WifiNetwork
 from pynetkit.util.dpapi import Dpapi
 from pynetkit.util.windows import wlanapi, wlanhosted, wlanmisc
 from pynetkit.util.windows.wlanapi import WlanHostedNetworkStatus
@@ -153,7 +153,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def scan_networks(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> list[WifiNetwork]:
         interface.ensure_wifi_sta()
         iface = iface_by_guid(interface.name)
@@ -165,7 +165,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def start_station(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
         interface.ensure_wifi_sta()
@@ -200,7 +200,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def stop_station(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> None:
         interface.ensure_wifi_sta()
         iface = iface_by_guid(interface.name)
@@ -212,7 +212,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def get_station_state(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> WifiNetwork | None:
         interface.ensure_wifi_sta()
         iface = iface_by_guid(interface.name)
@@ -234,7 +234,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def start_access_point(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
         interface.ensure_wifi_ap()
@@ -300,7 +300,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def stop_access_point(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> None:
         interface.ensure_wifi_ap()
         if await self.get_access_point_state(interface):
@@ -312,7 +312,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def get_access_point_state(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> bool:
         interface.ensure_wifi_ap()
         status = wlanapi.WlanHostedNetworkQueryStatus()
@@ -321,7 +321,7 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def get_access_point_clients(
         self,
-        interface: NetworkInterface | None,
+        interface: NetworkAdapter | None,
     ) -> set[MAC]:
         clients = set()
         status = wlanapi.WlanHostedNetworkQueryStatus()

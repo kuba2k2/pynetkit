@@ -1,74 +1,64 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, IPv4Interface
 
 import ifaddr
 from icmplib import async_ping
 
 from pynetkit.modules.base import ModuleBase, module_thread
-from pynetkit.types import Ip4Config, NetworkInterface
+from pynetkit.types import NetworkAdapter
 
 
 class NetworkCommon(ModuleBase):
     @module_thread
-    async def list_interfaces(self) -> list[NetworkInterface]:
-        interfaces = []
-        for adapter in ifaddr.get_adapters():
-            title = adapter.nice_name
-            if adapter.ips:
-                nice_name = adapter.ips[0].nice_name
-                if nice_name != adapter.nice_name:
-                    title = f"{nice_name} ({adapter.nice_name})"
-            interfaces.append(
-                NetworkInterface(
-                    name=adapter.name,
-                    title=title,
-                    type=NetworkInterface.Type.WIRED,
-                    obj=None,
-                )
+    async def list_adapters(self) -> list[NetworkAdapter]:
+        adapters = []
+        for ifadapter in ifaddr.get_adapters():
+            adapter = NetworkAdapter(
+                ifadapter=ifadapter,
+                name=ifadapter.nice_name,
+                type=NetworkAdapter.Type.WIRED,
             )
-        await self._fill_interfaces(interfaces)
-        return interfaces
-
-    async def _fill_interfaces(self, interfaces: list[NetworkInterface]) -> None:
-        raise NotImplementedError()
+            if ifadapter.ips:
+                nice_name = ifadapter.ips[0].nice_name
+                if nice_name != ifadapter.nice_name:
+                    adapter.name = nice_name
+                    adapter.hardware = ifadapter.nice_name
+            adapters.append(adapter)
+        return adapters
 
     @module_thread
-    async def get_ip4config(
+    async def get_adapter_addresses(
         self,
-        interface: NetworkInterface,
-    ) -> list[Ip4Config]:
-        ipconfig = []
-        for adapter in ifaddr.get_adapters():
-            if adapter.name != interface.name:
+        adapter: NetworkAdapter,
+    ) -> list[IPv4Interface]:
+        addresses = []
+        for ifadapter in ifaddr.get_adapters():
+            if ifadapter.name != adapter.ifadapter.name:
                 continue
-            for ip in adapter.ips:
+            for ip in ifadapter.ips:
                 if not ip.is_IPv4:
                     continue
-                netmask_int = int(f"{(1 << ip.network_prefix) - 1:032b}"[::-1], 2)
-                ipconfig.append(
-                    Ip4Config(
-                        address=IPv4Address(ip.ip),
-                        netmask=IPv4Address(netmask_int),
-                        gateway=None,
-                    )
-                )
-        return ipconfig
+                addresses.append(IPv4Interface(f"{ip.ip}/{ip.network_prefix}"))
+            break
+        else:
+            raise ValueError("Network adapter not found")
+        return addresses
 
-    async def set_ip4config(
+    async def set_adapter_addresses(
         self,
-        interface: NetworkInterface,
-        ipconfig: Ip4Config,
+        adapter: NetworkAdapter,
+        addresses: list[IPv4Interface],
     ) -> None:
         raise NotImplementedError()
 
-    async def get_interface(
+    async def get_adapter(
         self,
-        interface_type: NetworkInterface.Type,
-    ) -> NetworkInterface | None:
-        interfaces = await self.list_interfaces()
+        adapter_type: NetworkAdapter.Type,
+    ) -> NetworkAdapter | None:
+        adapters = await self.list_adapters()
         try:
-            return next(i for i in interfaces if i.type == interface_type)
+            return next(a for a in adapters if a.type == adapter_type)
         except StopIteration:
             return None
 

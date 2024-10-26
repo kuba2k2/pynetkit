@@ -3,56 +3,56 @@
 from macaddress import MAC
 
 from pynetkit.modules.base import ModuleBase
-from pynetkit.types import NetworkInterface, WifiNetwork
+from pynetkit.types import NetworkAdapter, WifiNetwork
 
 
 class WifiCommon(ModuleBase):
     async def scan_networks(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> list[WifiNetwork]:
         raise NotImplementedError()
 
     async def start_station(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
         raise NotImplementedError()
 
     async def stop_station(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> None:
         raise NotImplementedError()
 
     async def get_station_state(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> WifiNetwork | None:
         raise NotImplementedError()
 
     async def start_access_point(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
         raise NotImplementedError()
 
     async def stop_access_point(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> None:
         raise NotImplementedError()
 
     async def get_access_point_state(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> bool:
         raise NotImplementedError()
 
     async def get_access_point_clients(
         self,
-        interface: NetworkInterface,
+        interface: NetworkAdapter,
     ) -> set[MAC]:
         raise NotImplementedError()
