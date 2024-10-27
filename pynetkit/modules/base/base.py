@@ -38,5 +38,5 @@ class ModuleBase(EventMixin):
             self.error(f"Command {args} failed ({p.returncode})")
             self.error((stdout.strip() or stderr.strip()).decode())
             return p.returncode, (stdout or stderr)
-        self.debug(f"Command {args} finished")
+        self.verbose(f"Command {args} finished")
         return p.returncode, stdout

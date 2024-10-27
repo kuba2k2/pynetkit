@@ -236,6 +236,8 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
     config.adapter = adapter
     config.query = query
     config.dhcp, config.addresses = await network.get_adapter_addresses(config.adapter)
+    if config.dhcp:
+        config.addresses = []
     CONFIG[index] = config
     mce(f"§fAssigned adapter §d{adapter.name}§f to index §d{index}§r.")
 
@@ -360,6 +362,8 @@ async def addr_flush(config: NetworkConfig):
 @async_command
 async def addr_save(config: NetworkConfig):
     config.dhcp, config.addresses = await network.get_adapter_addresses(config.adapter)
+    if config.dhcp:
+        config.addresses = []
     mce(f"§fAdapter §d{config.adapter.name}§f configuration saved§r.")
     mce(f"§fConfigured: §d{joinaddrs(config.dhcp, config.addresses)}§r")
 

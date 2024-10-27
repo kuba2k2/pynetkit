@@ -23,6 +23,14 @@ IFACE_BLACKLIST = [
 
 class NetworkWindows(NetworkCommon):
 
+    def _get_index(self, adapter: NetworkAdapter) -> int:
+        for i in range(1, iphlpapi.GetNumberOfInterfaces() + 1):
+            if_row = iphlpapi.GetIfEntry(i)
+            if adapter.obj not in if_row.wszName:
+                continue
+            return i
+        raise ValueError("Network adapter not found")
+
     @module_thread
     async def list_adapters(self) -> list[NetworkAdapter]:
         adapters = await super().list_adapters()
@@ -46,30 +54,28 @@ class NetworkWindows(NetworkCommon):
         return adapters
 
     @module_thread
+    async def get_adapter_addresses(
+        self,
+        adapter: NetworkAdapter,
+    ) -> tuple[bool, list[IPv4Interface]]:
+        index = self._get_index(adapter)
+        _, addresses = await super().get_adapter_addresses(adapter)
+        _, out = self.command(f"netsh interface ipv4 show ipaddresses {index}")
+        dhcp = b"Dhcp" in out
+        return dhcp, addresses
+
+    @module_thread
     async def set_adapter_addresses(
         self,
         adapter: NetworkAdapter,
         dhcp: bool,
         addresses: list[IPv4Interface],
     ) -> None:
-        index = 0
-        for i in range(1, iphlpapi.GetNumberOfInterfaces() + 1):
-            if_row = iphlpapi.GetIfEntry(i)
-            if adapter.obj not in if_row.wszName:
-                continue
-            index = i
-            break
-        if not index:
-            raise ValueError("Network adapter not found")
-
+        index = self._get_index(adapter)
         if dhcp and addresses:
             self.warning("Removing static addresses as DHCP is used")
             addresses = []
-
-        self.debug(f"Checking DHCP state on '{adapter.name}'")
         prev_dhcp, prev_addresses = await self.get_adapter_addresses(adapter)
-        _, out = self.command(f"netsh interface ipv4 show ipaddresses {index}")
-        prev_dhcp = b"Dhcp" in out
 
         if dhcp and not prev_dhcp:
             self.info(f"Enabling DHCP address on '{adapter.name}'")
