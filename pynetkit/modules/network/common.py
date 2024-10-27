@@ -31,7 +31,7 @@ class NetworkCommon(ModuleBase):
     async def get_adapter_addresses(
         self,
         adapter: NetworkAdapter,
-    ) -> list[IPv4Interface]:
+    ) -> tuple[bool, list[IPv4Interface]]:
         addresses = []
         for ifadapter in ifaddr.get_adapters():
             if ifadapter.name != adapter.ifadapter.name:
@@ -43,11 +43,13 @@ class NetworkCommon(ModuleBase):
             break
         else:
             raise ValueError("Network adapter not found")
-        return addresses
+        addresses = sorted(addr for addr in addresses if not addr.is_link_local)
+        return False, addresses
 
     async def set_adapter_addresses(
         self,
         adapter: NetworkAdapter,
+        dhcp: bool,
         addresses: list[IPv4Interface],
     ) -> None:
         raise NotImplementedError()

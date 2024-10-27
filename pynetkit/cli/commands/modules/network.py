@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from ipaddress import IPv4Interface
-from typing import Generator
+from typing import Generator, Iterable
 
 import click
 import cloup
@@ -24,14 +24,32 @@ from pynetkit.types import NetworkAdapter
 class NetworkConfig:
     index: int
     adapter: NetworkAdapter
+
+    dhcp: bool = True
     addresses: list[IPv4Interface] = field(default_factory=list)
+
     query: str = None
     keep: bool = False
     no_replace: bool = False
 
+    async def set_addresses(self) -> None:
+        await network.set_adapter_addresses(self.adapter, self.dhcp, self.addresses)
+        dhcp, addresses = await network.get_adapter_addresses(self.adapter)
+        if addresses != self.addresses and dhcp != self.dhcp:
+            mce(
+                f"§cCouldn't apply address configuration to §d{self.adapter.name}§c:\n"
+                f"Requested: §d{joinaddrs(self.dhcp, self.addresses)}§c\n"
+                f"Assigned: §d{joinaddrs(dhcp, addresses)}§r"
+            )
+        else:
+            mce(
+                f"§fAdapter §d{self.adapter.name}§f configuration changed§r.\n"
+                f"§8Assigned: §d{joinaddrs(dhcp, addresses)}§r"
+            )
+
 
 network = NetworkModule()
-config_map: dict[int, NetworkConfig] = {}
+CONFIG: dict[int, NetworkConfig] = {}
 
 TYPE_NAMES = {
     NetworkAdapter.Type.WIRED: "Wired",
@@ -47,10 +65,23 @@ async def network_start():
 
 
 def adapter_to_config(adapter: NetworkAdapter) -> NetworkConfig | None:
-    for i, config in config_map.items():
+    for i, config in CONFIG.items():
         if config.adapter.name == adapter.name:
             return config
     return None
+
+
+def joinaddrs(
+    dhcp: bool,
+    addresses: Iterable[IPv4Interface] | None,
+    sep: str = ", ",
+) -> str:
+    addrs = sep.join(str(address) for address in sorted(addresses))
+    if dhcp and addrs:
+        return f"{addrs} (DHCP)"
+    if dhcp:
+        return "DHCP"
+    return addrs or "None"
 
 
 @cloup.group(
@@ -72,7 +103,7 @@ def cli(ctx: Context):
         color=True,
     )
 
-    if not config_map:
+    if not CONFIG:
         mce(
             "\n§cAdapter mapping is not configured.\n"
             "§fChoose the network adapters you want to use with the "
@@ -85,7 +116,7 @@ def cli(ctx: Context):
     )
     table.title = "Adapter configuration / mapping"
     table.align = "l"
-    for idx, config in sorted(config_map.items()):
+    for idx, config in sorted(CONFIG.items()):
         config: NetworkConfig
         keep = "No"
         if config.keep:
@@ -99,8 +130,7 @@ def cli(ctx: Context):
                 idx,
                 config.adapter.name,
                 TYPE_NAMES[config.adapter.type],
-                "\n".join(str(address) for address in sorted(config.addresses))
-                or "None",
+                joinaddrs(config.dhcp, config.addresses, "\n"),
                 keep,
             ]
         )
@@ -120,19 +150,14 @@ async def list_():
     adapters = await network.list_adapters()
     for adapter in adapters:
         config = adapter_to_config(adapter)
-        addresses = await network.get_adapter_addresses(adapter)
+        dhcp, addresses = await network.get_adapter_addresses(adapter)
         table.add_row(
             [
                 adapter.name,
                 TYPE_NAMES[adapter.type],
                 config and config.index or "",
-                "\n".join(str(address) for address in sorted(addresses)) or "None",
-                config
-                and (
-                    "\n".join(str(address) for address in sorted(config.addresses))
-                    or "None"
-                )
-                or "",
+                joinaddrs(dhcp, addresses, "\n"),
+                config and joinaddrs(config.dhcp, config.addresses, "\n") or "",
             ]
         )
     click.echo(table.get_string())
@@ -159,7 +184,7 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
         mce("§cIndex must be at least 1.§r")
         return
     if not query:
-        config_map.pop(index)
+        CONFIG.pop(index)
         mce(f"§fRemoved adapter assignment for index §d{index}§r.")
         return
     query = query.lower()
@@ -182,7 +207,7 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
             if query.count(".") != 3:
                 continue
             # search by IP address
-            addresses = await network.get_adapter_addresses(adapter)
+            dhcp, addresses = await network.get_adapter_addresses(adapter)
             for address in addresses:
                 if query == str(address.ip):
                     break
@@ -194,23 +219,156 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
     if not adapter:
         mce("§cNo adapter matching the query was found.§r")
         return
-    config = config_map.get(index)
+    config = CONFIG.get(index)
     if not config:
         config = NetworkConfig(index=index, adapter=adapter)
     # save the -k/-n flags
     config.keep = keep
     config.no_replace = no_replace
     # skip the actual assignment if -n specified
-    if index in config_map and no_replace:
+    if index in CONFIG and no_replace:
         mce(
             f"§8Skipping adapter §d{index}§8 mapping - "
-            f"already assigned to §d{config_map[index].adapter.name}.§r"
+            f"already assigned to §d{CONFIG[index].adapter.name}.§r"
         )
         return
     # save the query and config mapping
+    config.adapter = adapter
     config.query = query
-    config_map[index] = config
+    config.dhcp, config.addresses = await network.get_adapter_addresses(config.adapter)
+    CONFIG[index] = config
     mce(f"§fAssigned adapter §d{adapter.name}§f to index §d{index}§r.")
+
+
+@cloup.group(
+    help="Manage adapter IP address configuration.",
+    invoke_without_command=True,
+)
+@cloup.argument("index", type=int, help="Adapter index to configure.")
+@click.pass_context
+def addr(ctx: Context, index: int):
+    if index not in CONFIG:
+        mce(
+            f"§cNo adapter is configured at index §d{index}§r.\n"
+            "§fChoose the network adapters you want to use with the "
+            "§enetwork use §dindex §cadapter §fcommand.§r"
+        )
+        return
+    ctx.obj = CONFIG[index]
+
+
+@addr.command(help="Add an IP address to the adapter's config.", name="add")
+@cloup.argument(
+    "addresses",
+    type=IPv4Interface,
+    required=True,
+    nargs=-1,
+    help="Interface address(es) with CIDR mask.",
+)
+@click.pass_obj
+@async_command
+async def addr_add(config: NetworkConfig, addresses: tuple[IPv4Interface]):
+    if config.dhcp is None:
+        mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, will be disabled.§r")
+    changed = config.dhcp
+    for address in addresses:
+        if address not in config.addresses:
+            config.addresses.append(address)
+            changed = True
+            continue
+        mce(f"§eAddress §d{address}§e already assigned to §d{config.adapter.name}§r.")
+    if changed:
+        config.dhcp = False
+        config.addresses.sort()
+        await config.set_addresses()
+
+
+@addr.command(help="Delete an IP address from the adapter's config.", name="del")
+@cloup.argument(
+    "addresses",
+    type=IPv4Interface,
+    required=True,
+    nargs=-1,
+    help="Interface address(es) with CIDR mask.",
+)
+@click.pass_obj
+@async_command
+async def addr_del(config: NetworkConfig, addresses: tuple[IPv4Interface]):
+    if config.dhcp:
+        mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, not deleting address.§r")
+        return
+    changed = False
+    for address in addresses:
+        if address in config.addresses:
+            config.addresses.remove(address)
+            changed = True
+            continue
+        mce(f"§eAddress §d{address}§e not assigned to §d{config.adapter.name}§r.")
+    if changed:
+        await config.set_addresses()
+
+
+@addr.command(help="Set an IP address for the adapter (flush and add).", name="set")
+@cloup.argument(
+    "addresses",
+    type=IPv4Interface,
+    required=True,
+    nargs=-1,
+    help="Interface address(es) with CIDR mask.",
+)
+@click.pass_obj
+@async_command
+async def addr_set(config: NetworkConfig, addresses: tuple[IPv4Interface]):
+    if config.dhcp:
+        mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, will be disabled.§r")
+    if set(addresses) == set(config.addresses) and not config.dhcp:
+        mce(
+            f"§eAddress(es) §d{joinaddrs(False, addresses)}§e "
+            f"already set for §d{config.adapter.name}§r."
+        )
+        return
+    config.dhcp = False
+    config.addresses = sorted(addresses)
+    await config.set_addresses()
+
+
+@addr.command(help="Enable DHCP and remove static IP addresses.", name="dhcp")
+@click.pass_obj
+@async_command
+async def addr_dhcp(config: NetworkConfig):
+    if config.dhcp:
+        mce(f"§eAdapter §d{config.adapter.name}§e already uses DHCP.§r")
+        return
+    config.dhcp = True
+    config.addresses = []
+    await config.set_addresses()
+
+
+@addr.command(help="Flush the IP addresses of the adapter (delete all).", name="flush")
+@click.pass_obj
+@async_command
+async def addr_flush(config: NetworkConfig):
+    if config.dhcp:
+        mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, will be disabled.§r")
+    config.dhcp = False
+    config.addresses = []
+    await config.set_addresses()
+
+
+@addr.command(help="Save the assigned IP addresses to the config.", name="save")
+@click.pass_obj
+@async_command
+async def addr_save(config: NetworkConfig):
+    config.dhcp, config.addresses = await network.get_adapter_addresses(config.adapter)
+    mce(f"§fAdapter §d{config.adapter.name}§f configuration saved§r.")
+    mce(f"§fConfigured: §d{joinaddrs(config.dhcp, config.addresses)}§r")
+
+
+@addr.command(help="Apply the configured IP addresses to the adapter.", name="restore")
+@click.pass_obj
+@async_command
+async def addr_restore(config: NetworkConfig):
+    await config.set_addresses()
 
 
 @cloup.command(help="Manually stop the network module.")
@@ -232,9 +390,10 @@ class CommandModule(BaseCommandModule):
                         index=idx,
                         query=config.query,
                         no_replace=config.no_replace,
-                        addresses=config.addresses,
+                        dhcp=config.dhcp,
+                        addresses=None if config.dhcp else (config.addresses or []),
                     )
-                    for idx, config in sorted(config_map.items())
+                    for idx, config in sorted(CONFIG.items())
                     if config.keep
                 ]
             ),
@@ -242,7 +401,7 @@ class CommandModule(BaseCommandModule):
             scripts=dict(
                 unload=[
                     f'network use {idx} ""'
-                    for idx, config in config_map.items()
+                    for idx, config in CONFIG.items()
                     if config.keep
                 ]
             ),
@@ -250,13 +409,23 @@ class CommandModule(BaseCommandModule):
 
     def config_commands(self, config: Config.Module) -> Generator[str, None, None]:
         for item in config.config.get("adapters", []):
+            item: dict
             yield f'network use {item["index"]} "{item["query"]}" -k' + (
                 " -n" if item["no_replace"] else ""
             )
+            addresses = item.get("addresses", None)
+            if item.get("dhcp"):
+                yield f"network addr {item['index']} dhcp"
+            elif not addresses:
+                yield f"network addr {item['index']} flush"
+            else:
+                yield f"network addr {item['index']} set " + " ".join(
+                    str(address) for address in sorted(addresses)
+                )
 
 
 cli.section("Network adapters", list_, use)
-# cli.section("IP configuration", addr)
+cli.section("IP configuration", addr)
 # cli.section("Utilities", ping)
 cli.section("Miscellaneous", stop)
 COMMAND = CommandModule()

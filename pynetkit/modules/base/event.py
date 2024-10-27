@@ -87,8 +87,12 @@ class EventMixin(FutureMixin, LoggerMixin):
                     self.resolve_future(event)
                     break
                 case MethodCallEvent(future, func, args, kwargs):
-                    result = await func(self, *args, **kwargs)
-                    self.resolve_future(future, result)
+                    try:
+                        result = await func(self, *args, **kwargs)
+                        self.resolve_future(future, result)
+                    except Exception as e:
+                        self.exception(f"Method call raised exception", exc_info=e)
+                        self.resolve_future(future, None)
                 case CoroutineCallEvent(coro):
                     await coro
                 case BaseEvent():

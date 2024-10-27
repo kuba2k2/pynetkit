@@ -1,6 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2023-9-8.
 
 import os
+import shlex
 import sys
 from subprocess import PIPE, Popen
 
@@ -28,12 +29,14 @@ class ModuleBase(EventMixin):
     def is_linux() -> bool:
         return sys.platform == "linux"
 
-    def command(self, *args: str) -> bytes:
+    def command(self, *args: str) -> tuple[int, bytes]:
+        if len(args) == 1:
+            args = shlex.split(args[0])
         p = Popen(args=[*args], stdout=PIPE, stderr=PIPE)
         stdout, stderr = p.communicate()
         if p.wait() != 0:
-            raise RuntimeError(
-                f"Command {args} failed ({p.returncode}): {(stdout or stderr)}"
-            )
+            self.error(f"Command {args} failed ({p.returncode})")
+            self.error((stdout.strip() or stderr.strip()).decode())
+            return p.returncode, (stdout or stderr)
         self.debug(f"Command {args} finished")
-        return stdout
+        return p.returncode, stdout

@@ -1,6 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
 from ipaddress import IPv4Interface
+from random import randint
 
 from win32wifi import Win32Wifi
 
@@ -48,6 +49,7 @@ class NetworkWindows(NetworkCommon):
     async def set_adapter_addresses(
         self,
         adapter: NetworkAdapter,
+        dhcp: bool,
         addresses: list[IPv4Interface],
     ) -> None:
         index = 0
@@ -60,7 +62,16 @@ class NetworkWindows(NetworkCommon):
         if not index:
             raise ValueError("Network adapter not found")
 
-        if not addresses:
+        if dhcp and addresses:
+            self.warning("Removing static addresses as DHCP is used")
+            addresses = []
+
+        self.debug(f"Checking DHCP state on '{adapter.name}'")
+        prev_dhcp, prev_addresses = await self.get_adapter_addresses(adapter)
+        _, out = self.command(f"netsh interface ipv4 show ipaddresses {index}")
+        prev_dhcp = b"Dhcp" in out
+
+        if dhcp and not prev_dhcp:
             self.info(f"Enabling DHCP address on '{adapter.name}'")
             self.command(
                 "netsh",
@@ -73,6 +84,28 @@ class NetworkWindows(NetworkCommon):
                 "store=active",
             )
             return
+        elif dhcp:
+            self.info(f"DHCP is already enabled on '{adapter.name}'")
+            return
+        elif not addresses:
+            self.warning(f"No static address provided, using random link-local address")
+            addresses = [
+                IPv4Interface(f"169.254.{randint(1, 254)}.{randint(1, 254)}/16")
+            ]
+
+        remove = set(prev_addresses) - set(addresses)
+        for i, address in enumerate(remove):
+            self.info(f"Deleting static IP address {address} on '{adapter.name}'")
+            self.command(
+                "netsh",
+                "interface",
+                "ipv4",
+                "delete",
+                "address",
+                f"name={index}",
+                f"address={address.ip}",
+                "store=active",
+            )
 
         for i, address in enumerate(addresses):
             self.info(f"Setting static IP address {address} on '{adapter.name}'")
