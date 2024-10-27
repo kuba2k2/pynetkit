@@ -1,7 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-25.
 
 from dataclasses import dataclass, field
-from ipaddress import IPv4Interface
+from ipaddress import IPv4Address, IPv4Interface
 from typing import Generator, Iterable
 
 import click
@@ -375,6 +375,22 @@ async def addr_restore(config: NetworkConfig):
     await config.set_addresses()
 
 
+@cloup.command(help="Ping a host to see if it's alive.")
+@cloup.argument("address", type=IPv4Address, help="IP address of the host to ping.")
+@cloup.argument("count", type=int, default=4, help="How many pings (default: 4).")
+@cloup.argument("interval", type=float, default=0.2, help="Interval (default: 0.2 s).")
+@cloup.argument("timeout", type=float, default=1.0, help="Timeout (default: 1.0 s).")
+@async_command
+async def ping(address: IPv4Address, count: int, interval: float, timeout: float):
+    await network.ping(
+        address,
+        count,
+        interval,
+        timeout,
+        log=lambda msg: mce((f"§a" if "alive" in msg else "§c") + msg + "§r"),
+    )
+
+
 @cloup.command(help="Manually stop the network module.")
 @async_command
 async def stop():
@@ -430,6 +446,6 @@ class CommandModule(BaseCommandModule):
 
 cli.section("Network adapters", list_, use)
 cli.section("IP configuration", addr)
-# cli.section("Utilities", ping)
+cli.section("Utilities", ping)
 cli.section("Miscellaneous", stop)
 COMMAND = CommandModule()

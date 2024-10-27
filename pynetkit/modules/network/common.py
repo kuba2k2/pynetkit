@@ -1,6 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
 from ipaddress import IPv4Address, IPv4Interface
+from typing import Callable
 
 import ifaddr
 from icmplib import async_ping
@@ -70,10 +71,13 @@ class NetworkCommon(ModuleBase):
         count: int = 4,
         interval: float = 0.2,
         timeout: float = 2.0,
+        log: Callable[[str], None] = None,
     ) -> float | None:
+        if not log:
+            log = self.debug
         host = await async_ping(str(address), count, interval, timeout)
         if not host.is_alive:
-            self.debug(f"Host {address} is dead")
+            log(f"Host {address} is dead")
             return None
-        self.debug(f"Host {address} is alive, RTT {host.avg_rtt} ms")
+        log(f"Host {address} is alive, RTT {host.avg_rtt} ms")
         return host.avg_rtt
