@@ -153,10 +153,10 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def scan_networks(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> list[WifiNetwork]:
-        interface.ensure_wifi_sta()
-        iface = iface_by_guid(interface.name)
+        adapter.ensure_wifi_sta()
+        iface = iface_by_guid(adapter.obj)
         handle = Win32NativeWifiApi.WlanOpenHandle()
         Win32NativeWifiApi.WlanScan(handle, iface.guid)
         Win32NativeWifiApi.WlanCloseHandle(handle)
@@ -165,14 +165,14 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def start_station(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
-        interface.ensure_wifi_sta()
-        iface = iface_by_guid(interface.name)
+        adapter.ensure_wifi_sta()
+        iface = iface_by_guid(adapter.obj)
         xml = wlanmisc.make_xml_profile(network)
-        if await self.get_station_state(interface):
-            await self.stop_station()
+        if await self.get_station_state(adapter):
+            await self.stop_station(adapter)
         handle = Win32NativeWifiApi.WlanOpenHandle()
         params = Win32NativeWifiApi.WLAN_CONNECTION_PARAMETERS()
         params.wlanConnectionMode = Win32NativeWifiApi.WLAN_CONNECTION_MODE(
@@ -200,22 +200,22 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def stop_station(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> None:
-        interface.ensure_wifi_sta()
-        iface = iface_by_guid(interface.name)
+        adapter.ensure_wifi_sta()
+        iface = iface_by_guid(adapter.obj)
         _, state = Win32Wifi.queryInterface(iface, "interface_state")
         Win32Wifi.disconnect(iface)
-        if await self.get_station_state(interface):
+        if await self.get_station_state(adapter):
             await WifiDisconnectedEvent.any()
 
     @module_thread
     async def get_station_state(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> WifiNetwork | None:
-        interface.ensure_wifi_sta()
-        iface = iface_by_guid(interface.name)
+        adapter.ensure_wifi_sta()
+        iface = iface_by_guid(adapter.obj)
         _, state = Win32Wifi.queryInterface(iface, "interface_state")
         if state == "wlan_interface_state_connected":
             _, conn = Win32Wifi.queryInterface(iface, "current_connection")
@@ -234,10 +234,10 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def start_access_point(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
-        interface.ensure_wifi_ap()
+        adapter.ensure_wifi_ap()
         config_changed = False
 
         self.info("Configuring Hosted Network...")
@@ -270,7 +270,7 @@ class WifiWindows(WifiCommon):
             config_changed = True
 
         if config_changed:
-            await self.stop_access_point(interface)
+            await self.stop_access_point(adapter)
             self._unregister(stop_wlansvc=True)
             await asyncio.sleep(2)
 
@@ -286,7 +286,7 @@ class WifiWindows(WifiCommon):
                 data=None,
             )
 
-        if not await self.get_access_point_state(interface):
+        if not await self.get_access_point_state(adapter):
             self.info(f"Starting Hosted Network '{network.ssid}'")
             future = WifiAPStartedEvent.any()
             self.command("netsh", "wlan", "start", "hostednetwork")
@@ -295,15 +295,15 @@ class WifiWindows(WifiCommon):
             self.info(f"Hosted Network '{network.ssid}' is already running")
             WifiAPStartedEvent().broadcast()
 
-        await self.get_access_point_clients(interface)
+        await self.get_access_point_clients(adapter)
 
     @module_thread
     async def stop_access_point(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> None:
-        interface.ensure_wifi_ap()
-        if await self.get_access_point_state(interface):
+        adapter.ensure_wifi_ap()
+        if await self.get_access_point_state(adapter):
             self.info("Stopping Hosted Network")
             future = WifiAPStoppedEvent.any()
             self.command("netsh", "wlan", "stop", "hostednetwork")
@@ -312,16 +312,16 @@ class WifiWindows(WifiCommon):
     @module_thread
     async def get_access_point_state(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> bool:
-        interface.ensure_wifi_ap()
+        adapter.ensure_wifi_ap()
         status = wlanapi.WlanHostedNetworkQueryStatus()
         return status.state == WlanHostedNetworkStatus.State.ACTIVE
 
     @module_thread
     async def get_access_point_clients(
         self,
-        interface: NetworkAdapter | None,
+        adapter: NetworkAdapter | None,
     ) -> set[MAC]:
         clients = set()
         status = wlanapi.WlanHostedNetworkQueryStatus()

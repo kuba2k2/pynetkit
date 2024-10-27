@@ -9,50 +9,50 @@ from pynetkit.types import NetworkAdapter, WifiNetwork
 class WifiCommon(ModuleBase):
     async def scan_networks(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> list[WifiNetwork]:
         raise NotImplementedError()
 
     async def start_station(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
         raise NotImplementedError()
 
     async def stop_station(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> None:
         raise NotImplementedError()
 
     async def get_station_state(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> WifiNetwork | None:
         raise NotImplementedError()
 
     async def start_access_point(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
         network: WifiNetwork,
     ) -> None:
         raise NotImplementedError()
 
     async def stop_access_point(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> None:
         raise NotImplementedError()
 
     async def get_access_point_state(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> bool:
         raise NotImplementedError()
 
     async def get_access_point_clients(
         self,
-        interface: NetworkAdapter,
+        adapter: NetworkAdapter,
     ) -> set[MAC]:
         raise NotImplementedError()

@@ -180,6 +180,7 @@ async def list_():
 @cloup.option("-n", "--no-replace", is_flag=True, help="Only assign if not already.")
 @async_command
 async def use(index: int, query: str, no_replace: bool, keep: bool):
+    await network_start()
     if index <= 0:
         mce("§cIndex must be at least 1.§r")
         return
@@ -270,6 +271,7 @@ def addr(ctx: Context, index: int):
 @click.pass_obj
 @async_command
 async def addr_add(config: NetworkConfig, addresses: tuple[IPv4Interface]):
+    await network_start()
     if config.dhcp is None:
         mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, will be disabled.§r")
     changed = config.dhcp
@@ -296,6 +298,7 @@ async def addr_add(config: NetworkConfig, addresses: tuple[IPv4Interface]):
 @click.pass_obj
 @async_command
 async def addr_del(config: NetworkConfig, addresses: tuple[IPv4Interface]):
+    await network_start()
     if config.dhcp:
         mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, not deleting address.§r")
         return
@@ -321,6 +324,7 @@ async def addr_del(config: NetworkConfig, addresses: tuple[IPv4Interface]):
 @click.pass_obj
 @async_command
 async def addr_set(config: NetworkConfig, addresses: tuple[IPv4Interface]):
+    await network_start()
     if config.dhcp:
         mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, will be disabled.§r")
     if set(addresses) == set(config.addresses) and not config.dhcp:
@@ -338,6 +342,7 @@ async def addr_set(config: NetworkConfig, addresses: tuple[IPv4Interface]):
 @click.pass_obj
 @async_command
 async def addr_dhcp(config: NetworkConfig):
+    await network_start()
     if config.dhcp:
         mce(f"§eAdapter §d{config.adapter.name}§e already uses DHCP.§r")
         return
@@ -350,6 +355,7 @@ async def addr_dhcp(config: NetworkConfig):
 @click.pass_obj
 @async_command
 async def addr_flush(config: NetworkConfig):
+    await network_start()
     if config.dhcp:
         mce(f"§eAdapter §d{config.adapter.name}§e uses DHCP, will be disabled.§r")
     config.dhcp = False
@@ -361,6 +367,7 @@ async def addr_flush(config: NetworkConfig):
 @click.pass_obj
 @async_command
 async def addr_save(config: NetworkConfig):
+    await network_start()
     config.dhcp, config.addresses = await network.get_adapter_addresses(config.adapter)
     if config.dhcp:
         config.addresses = []
@@ -372,6 +379,7 @@ async def addr_save(config: NetworkConfig):
 @click.pass_obj
 @async_command
 async def addr_restore(config: NetworkConfig):
+    await network_start()
     await config.set_addresses()
 
 
@@ -382,6 +390,7 @@ async def addr_restore(config: NetworkConfig):
 @cloup.argument("timeout", type=float, default=1.0, help="Timeout (default: 1.0 s).")
 @async_command
 async def ping(address: IPv4Address, count: int, interval: float, timeout: float):
+    await network_start()
     await network.ping(
         address,
         count,
@@ -400,6 +409,7 @@ async def stop():
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+    CONFIG = CONFIG
 
     def config_get(self) -> Config.Module:
         return Config.Module(
