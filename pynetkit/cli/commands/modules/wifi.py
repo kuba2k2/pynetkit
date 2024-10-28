@@ -1,5 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-27.
 
+from typing import Generator
+
 import click
 import cloup
 from click import Context
@@ -11,6 +13,7 @@ from pynetkit.cli.commands.base import (
     BaseCommandModule,
     async_command,
 )
+from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import config_table, mce
 from pynetkit.modules.wifi import WifiModule
 from pynetkit.types import NetworkAdapter, WifiNetwork
@@ -215,6 +218,7 @@ async def connect(index: int, ssid: str, password: str):
     if state and ssid == state.ssid:
         mce(f"§fAlready connected to §d{state.ssid}§r.")
         STACONFIG[index] = network
+        APCONFIG.pop(index, None)
         return
     # try to connect
     mce(f"§fConnecting to §d{network.ssid}§r...")
@@ -233,6 +237,7 @@ async def connect(index: int, ssid: str, password: str):
     # success
     mce(f"§fConnected to Wi-Fi network §d{state.ssid}§r.")
     STACONFIG[index] = network
+    APCONFIG.pop(index, None)
 
 
 @cloup.command(help="Disconnect the adapter from Wi-Fi.")
@@ -270,8 +275,9 @@ async def ap(index: int, ssid: str, password: str):
     # exit successfully if already running
     state = await wifi.get_access_point_state(adapter)
     if state and network.ssid == state.ssid and network.password == state.password:
-        mce(f"§fAlready running with SSID §d{state.ssid}§r and the provided password.")
+        mce(f"§fAlready running with SSID §d{state.ssid}§f and this password.§r")
         APCONFIG[index] = network
+        STACONFIG.pop(index, None)
         return
     # try to start the AP
     mce(f"§fStarting access point with SSID §d{network.ssid}§r...")
@@ -290,6 +296,7 @@ async def ap(index: int, ssid: str, password: str):
     # success
     mce(f"§fStarted an access point with SSID §d{state.ssid}§r.")
     APCONFIG[index] = network
+    STACONFIG.pop(index, None)
 
 
 @cloup.command(help="Stop a Wi-Fi access point.")
@@ -315,6 +322,38 @@ async def apstop(index: int):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    @staticmethod
+    def _network_to_dict(network: WifiNetwork | None) -> dict | None:
+        if network:
+            return dict(ssid=network.ssid, password=network.password.decode())
+        return None
+
+    def config_get(self) -> Config.Module:
+        return Config.Module(
+            order=100,
+            config=dict(
+                adapters=[
+                    dict(
+                        index=idx,
+                        sta=self._network_to_dict(STACONFIG.get(idx)),
+                        ap=self._network_to_dict(APCONFIG.get(idx)),
+                    )
+                    for idx, config in sorted(CONFIG.items())
+                ]
+            ),
+        )
+
+    def config_commands(self, config: Config.Module) -> Generator[str, None, None]:
+        for item in config.config.get("adapters", []):
+            item: dict
+            index = item["index"]
+            sta: dict = item.get("sta")
+            ap_: dict = item.get("ap")
+            if sta:
+                yield f'wifi connect -@{index} "{sta["ssid"]}" "{sta["password"]}"'
+            if ap_:
+                yield f'wifi ap -@{index} "{ap_["ssid"]}" "{ap_["password"]}"'
 
 
 cli.section("Primary commands", show, scan)
