@@ -48,7 +48,7 @@ class WifiCommon(ModuleBase):
     async def get_access_point_state(
         self,
         adapter: NetworkAdapter,
-    ) -> bool:
+    ) -> WifiNetwork | None:
         raise NotImplementedError()
 
     async def get_access_point_clients(

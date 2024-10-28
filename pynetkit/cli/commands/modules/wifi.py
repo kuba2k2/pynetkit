@@ -190,10 +190,10 @@ async def connect(index: int, ssid: str, password: str):
     index, adapter = await get_adapter(index, ap=False)
     if not adapter:
         return
-    connected = await wifi.get_station_state(adapter)
+    state = await wifi.get_station_state(adapter)
     # cache the connected network
-    if connected:
-        SCAN[connected.ssid] = connected
+    if state:
+        SCAN[state.ssid] = state
     # scan if SSID not cached
     if ssid not in SCAN:
         mce("§fScanning for Wi-Fi networks...§r")
@@ -212,26 +212,26 @@ async def connect(index: int, ssid: str, password: str):
         mce(f"§cNetwork with SSID §d{ssid}§c is password-protected.§r")
         return
     # exit successfully if already connected
-    if connected and ssid == connected.ssid:
-        mce(f"§fAlready connected to §d{connected.ssid}§r.")
+    if state and ssid == state.ssid:
+        mce(f"§fAlready connected to §d{state.ssid}§r.")
         STACONFIG[index] = network
         return
     # try to connect
     mce(f"§fConnecting to §d{network.ssid}§r...")
     await wifi.start_station(adapter, network)
     # check the connection result
-    connected = await wifi.get_station_state(adapter)
-    if not connected:
+    state = await wifi.get_station_state(adapter)
+    if not state:
         mce(f"§cCouldn't connect to the network - wrong password?§r")
         return
-    if network.ssid != connected.ssid:
+    if network.ssid != state.ssid:
         mce(
-            f"§cConnected to a different network §d({connected.ssid})§c "
+            f"§cConnected to a different network §d({state.ssid})§c "
             f"than requested §d({network.ssid})§r."
         )
         return
     # success
-    mce(f"§fConnected to Wi-Fi network §d{connected.ssid}§r.")
+    mce(f"§fConnected to Wi-Fi network §d{state.ssid}§r.")
     STACONFIG[index] = network
 
 
@@ -242,18 +242,75 @@ async def disconnect(index: int):
     index, adapter = await get_adapter(index, ap=False)
     if not adapter:
         return
-    connected = await wifi.get_station_state(adapter)
-    if not connected:
+    state = await wifi.get_station_state(adapter)
+    if not state:
         mce(f"§eNot connected to any network§r.")
         STACONFIG.pop(index, None)
         return
     await wifi.stop_station(adapter)
-    disconnected = not (await wifi.get_station_state(adapter))
-    if not disconnected:
-        mce(f"§cCouldn't disconnect from §d{connected.ssid}§r.")
+    state2 = await wifi.get_station_state(adapter)
+    if state2:
+        mce(f"§cCouldn't disconnect from §d{state.ssid}§r.")
         return
-    mce(f"§fDisconnected from §d{connected.ssid}§r.")
+    mce(f"§fDisconnected from §d{state.ssid}§r.")
     STACONFIG.pop(index, None)
+
+
+@cloup.command(help="Start a Wi-Fi access point.")
+@cloup.argument("ssid", help="Network SSID.")
+@cloup.argument("password", required=False, help="Network password (optional).")
+@click.option("-@", "--index", type=int, required=False, help="Adapter index.")
+@async_command
+async def ap(index: int, ssid: str, password: str):
+    index, adapter = await get_adapter(index, ap=True)
+    if not adapter:
+        return
+    # create the network object
+    network = WifiNetwork(ssid, password and password.encode("utf-8") or None)
+    # exit successfully if already running
+    state = await wifi.get_access_point_state(adapter)
+    if state and network.ssid == state.ssid and network.password == state.password:
+        mce(f"§fAlready running with SSID §d{state.ssid}§r and the provided password.")
+        APCONFIG[index] = network
+        return
+    # try to start the AP
+    mce(f"§fStarting access point with SSID §d{network.ssid}§r...")
+    await wifi.start_access_point(adapter, network)
+    # check the result
+    state = await wifi.get_access_point_state(adapter)
+    if not state:
+        mce(f"§cCouldn't start the access point§r")
+        return
+    if network.ssid != state.ssid or network.password != state.password:
+        mce(
+            f"§cStarted a different access point §d({state.ssid})§c "
+            f"than requested §d({network.ssid})§r."
+        )
+        return
+    # success
+    mce(f"§fStarted an access point with SSID §d{state.ssid}§r.")
+    APCONFIG[index] = network
+
+
+@cloup.command(help="Stop a Wi-Fi access point.")
+@click.option("-@", "--index", type=int, required=False, help="Adapter index.")
+@async_command
+async def apstop(index: int):
+    index, adapter = await get_adapter(index, ap=True)
+    if not adapter:
+        return
+    state = await wifi.get_access_point_state(adapter)
+    if not state:
+        mce(f"§eAccess point is not started§r.")
+        APCONFIG.pop(index, None)
+        return
+    await wifi.stop_access_point(adapter)
+    state2 = await wifi.get_access_point_state(adapter)
+    if state2:
+        mce(f"§cCouldn't stop access point §d{state.ssid}§r.")
+        return
+    mce(f"§fAccess point with SSID §d{state.ssid}§f is stopped.§r")
+    APCONFIG.pop(index, None)
 
 
 class CommandModule(BaseCommandModule):
@@ -262,4 +319,5 @@ class CommandModule(BaseCommandModule):
 
 cli.section("Primary commands", show, scan)
 cli.section("Wi-Fi station", connect, disconnect)
+cli.section("Wi-Fi access point", ap, apstop)
 COMMAND = CommandModule()
