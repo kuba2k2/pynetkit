@@ -9,6 +9,7 @@ import cloup
 from click import Context
 from prettytable.colortable import ColorTable, Themes
 
+from pynetkit.cli.command import run_command
 from pynetkit.cli.commands.base import (
     CONTEXT_SETTINGS,
     BaseCommandModule,
@@ -194,11 +195,11 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
         return
     query = query.lower()
     type_query_map = {
-        "wired": NetworkAdapter.Type.WIRED,
-        "wireless": NetworkAdapter.Type.WIRELESS,
-        "wifi": [NetworkAdapter.Type.WIRELESS, NetworkAdapter.Type.WIRELESS_STA],
-        "sta": [NetworkAdapter.Type.WIRELESS_STA, NetworkAdapter.Type.WIRELESS],
-        "ap": [NetworkAdapter.Type.WIRELESS_AP, NetworkAdapter.Type.WIRELESS],
+        "wired": (NetworkAdapter.Type.WIRED,),
+        "wireless": (NetworkAdapter.Type.WIRELESS,),
+        "wifi": (NetworkAdapter.Type.WIRELESS, NetworkAdapter.Type.WIRELESS_STA),
+        "sta": (NetworkAdapter.Type.WIRELESS_STA, NetworkAdapter.Type.WIRELESS),
+        "ap": (NetworkAdapter.Type.WIRELESS_AP, NetworkAdapter.Type.WIRELESS),
     }
     adapter: NetworkAdapter | None = None
     # search by adapter type
@@ -415,6 +416,13 @@ async def stop():
 class CommandModule(BaseCommandModule):
     CLI = cli
     CONFIG = CONFIG
+
+    def on_load(self) -> None:
+        mce("§8Network module loaded, assigning default adapter mappings...§r")
+        mce("§8Ignore any errors here.§r")
+        run_command("network use 1 wired")
+        run_command("network use 2 sta")
+        run_command("network use 3 ap")
 
     def config_get(self) -> Config.Module:
         return Config.Module(

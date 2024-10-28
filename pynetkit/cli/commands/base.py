@@ -86,6 +86,9 @@ class BaseCommandModule:
             self.CLI = cli
         self._add_help(self.CLI)
 
+    def on_load(self) -> None:
+        pass
+
     def _add_help(self, command: BaseCommand) -> None:
         click.option(
             "-h",

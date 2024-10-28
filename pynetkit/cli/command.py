@@ -49,6 +49,7 @@ def get_module(cmd: str, no_import: bool = False) -> BaseCommandModule | None:
             exception("Module import failed", exc_info=e)
             return None
         COMMANDS[cmd] = (help_str, module)
+        module.on_load()
     return module
 
 
