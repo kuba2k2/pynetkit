@@ -168,7 +168,7 @@ class Config:
             mce(f"§3=> {command}§r")
             run_command(command)
 
-        for name in config["modules"]:
+        for name, _ in sorted(config["modules"].items(), key=lambda t: t[1]["order"]):
             mce(f"§fConfiguring module §d{name}§f...§r")
             module = get_module(name)
             if not module:
