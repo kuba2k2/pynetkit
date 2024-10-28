@@ -79,6 +79,7 @@ def get_command(line: str) -> tuple[BaseCommand | None, str, list[str]]:
 
 
 def run_command(line: str) -> None:
+    line, _, _ = line.partition("#")
     cli, cmd, args = get_command(line)
     if not cli:
         return

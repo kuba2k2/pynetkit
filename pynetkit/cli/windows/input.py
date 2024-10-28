@@ -138,6 +138,16 @@ class InputWindow(BaseWindow):
         self.set_cursor()
 
     def run_command(self, line: str) -> None:
+        line, _, comment = line.strip().partition("#")
+        line = line.strip()
+        comment = comment.strip()
+        if not line and comment:
+            self.logger.emit_string(
+                log_prefix="",
+                message="\n# " + comment,
+                color="bright_black",
+            )
+            return
         self.logger.emit_string(
             log_prefix="",
             message="\n" + self.prompt + line,
