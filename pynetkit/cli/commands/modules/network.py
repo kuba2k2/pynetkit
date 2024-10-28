@@ -431,13 +431,13 @@ class CommandModule(BaseCommandModule):
                 adapters=[
                     dict(
                         index=idx,
-                        query=config.query,
+                        query=config.keep and config.query or None,
                         no_replace=config.no_replace,
                         dhcp=config.dhcp,
                         addresses=None if config.dhcp else (config.addresses or []),
                     )
                     for idx, config in sorted(CONFIG.items())
-                    if config.keep
+                    if config.keep or config.addresses
                 ]
             ),
             # unload script - remove all persistent entries from the config map
@@ -453,9 +453,10 @@ class CommandModule(BaseCommandModule):
     def config_commands(self, config: Config.Module) -> Generator[str, None, None]:
         for item in config.config.get("adapters", []):
             item: dict
-            yield f'network use {item["index"]} "{item["query"]}" -k' + (
-                " -n" if item["no_replace"] else ""
-            )
+            if item.get("query"):
+                yield f'network use {item["index"]} "{item["query"]}" -k' + (
+                    " -n" if item["no_replace"] else ""
+                )
             addresses = item.get("addresses", None)
             if item.get("dhcp"):
                 yield f"network addr {item['index']} dhcp"
