@@ -35,7 +35,7 @@ class NetworkConfig:
     async def set_addresses(self) -> None:
         await network.set_adapter_addresses(self.adapter, self.dhcp, self.addresses)
         dhcp, addresses = await network.get_adapter_addresses(self.adapter)
-        if addresses != self.addresses and dhcp != self.dhcp:
+        if addresses != self.addresses and not self.dhcp:
             mce(
                 f"§cCouldn't apply address configuration to §d{self.adapter.name}§c:\n"
                 f"Requested: §d{joinaddrs(self.dhcp, self.addresses)}§c\n"
@@ -84,6 +84,14 @@ def joinaddrs(
     return addrs or "None"
 
 
+def print_no_mapping():
+    mce(
+        "\n§cAdapter mapping is not configured.\n"
+        "§fChoose the network adapters you want to use with the "
+        "§enetwork use §dindex §cadapter §fcommand.§r"
+    )
+
+
 @cloup.group(
     name="network",
     context_settings=CONTEXT_SETTINGS,
@@ -104,11 +112,7 @@ def cli(ctx: Context):
     )
 
     if not CONFIG:
-        mce(
-            "\n§cAdapter mapping is not configured.\n"
-            "§fChoose the network adapters you want to use with the "
-            "§enetwork use §dindex §cadapter §fcommand.§r"
-        )
+        print_no_mapping()
         return
     table = ColorTable(
         [" ", "Name", "Type", "Configured addresses", "Keep in config (-k)?"],
@@ -192,13 +196,14 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
     type_query_map = {
         "wired": NetworkAdapter.Type.WIRED,
         "wireless": NetworkAdapter.Type.WIRELESS,
-        "sta": NetworkAdapter.Type.WIRELESS_STA,
-        "ap": NetworkAdapter.Type.WIRELESS_AP,
+        "wifi": [NetworkAdapter.Type.WIRELESS, NetworkAdapter.Type.WIRELESS_STA],
+        "sta": [NetworkAdapter.Type.WIRELESS_STA, NetworkAdapter.Type.WIRELESS],
+        "ap": [NetworkAdapter.Type.WIRELESS_AP, NetworkAdapter.Type.WIRELESS],
     }
     adapter: NetworkAdapter | None = None
     # search by adapter type
     if query in type_query_map:
-        adapter = await network.get_adapter(type_query_map[query])
+        adapter = await network.get_adapter(*type_query_map[query])
     if not adapter:
         adapters = await network.list_adapters()
         for adapter in adapters:

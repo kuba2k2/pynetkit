@@ -10,7 +10,7 @@ class WifiNetwork:
     password: bytes | None
     auth: "Auth" = None
     cipher: "Cipher" = None
-    rssi: int = None
+    rssi: float = None
     ad_hoc: bool = False
 
     class Auth(Enum):

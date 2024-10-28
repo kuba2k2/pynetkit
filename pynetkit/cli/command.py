@@ -21,6 +21,7 @@ COMMANDS: dict[str, tuple[str, str | BaseCommandModule]] = {
     "network": ("Manage the network card.", "pynetkit/cli/commands/modules/network.py"),
     "ntp": ("Manage the NTP server.", "pynetkit/cli/commands/modules/ntp.py"),
     "proxy": ("Manage the proxy server.", "pynetkit/cli/commands/modules/proxy.py"),
+    "wifi": ("Manage the Wi-Fi adapters.", "pynetkit/cli/commands/modules/wifi.py"),
 }
 ALIASES = {
     "?": "help",

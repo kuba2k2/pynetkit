@@ -1,5 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2023-9-9.
 
+from logging import info
 from uuid import UUID
 from winreg import HKEY_LOCAL_MACHINE as HKLM
 from winreg import OpenKey, QueryValueEx
@@ -99,6 +100,7 @@ class Dpapi:
             with key_path.open("rb") as f:
                 master_key_file = DpapiMasterKeyFile.unpack(f)
 
+            info("Decrypting DPAPI master key, this will take a moment")
             master_key = master_key_file.master_key
             master_key.decrypt(
                 self.secret.user_cred if store.user else self.secret.machine_cred

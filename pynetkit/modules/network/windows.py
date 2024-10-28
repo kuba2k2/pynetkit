@@ -11,17 +11,17 @@ from pynetkit.util.windows import iphlpapi, wlanapi
 
 from .common import NetworkCommon
 
-IFACE_BLACKLIST = [
-    "VMware",
-    "VirtualBox",
-    "ISATAP",
-    "Loopback",
-    "Wintun",
-    "Bluetooth",
-]
-
 
 class NetworkWindows(NetworkCommon):
+    IFACE_BLACKLIST_WORDS = [
+        "VMware",
+        "VirtualBox",
+        "ISATAP",
+        "Loopback",
+        "Wintun",
+        "Bluetooth",
+        "Microsoft 6to4 Adapter",
+    ]
 
     def _get_index(self, adapter: NetworkAdapter) -> int:
         for i in range(1, iphlpapi.GetNumberOfInterfaces() + 1):
@@ -37,10 +37,6 @@ class NetworkWindows(NetworkCommon):
         # store adapter GUID in adapter.obj
         for adapter in adapters:
             adapter.obj = adapter.ifadapter.name
-        # remove known virtual adapters
-        for adapter in list(adapters):
-            if any(s in adapter.title for s in IFACE_BLACKLIST):
-                adapters.remove(adapter)
         # mark Wi-Fi Station adapters
         for iface in Win32Wifi.getWirelessInterfaces():
             for adapter in adapters:

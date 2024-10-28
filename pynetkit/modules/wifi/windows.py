@@ -68,6 +68,7 @@ class WifiWindows(WifiCommon):
     notification: Win32Wifi.NotificationObject | None = None
     dpapi: Dpapi | None = None
     ap_clients: set[MAC] = None
+    access_point: WifiNetwork | None = None
 
     async def start(self) -> None:
         await super().start()
@@ -145,7 +146,7 @@ class WifiWindows(WifiCommon):
                         WifiAPStartedEvent().broadcast()
 
             case HNET.wlan_hosted_network_peer_state_change.name:
-                self.call_coroutine(self.get_access_point_clients(interface=None))
+                self.call_coroutine(self.get_access_point_clients(adapter=None))
 
             case _ if code not in (e.name for e in MSM):
                 WifiRawEvent(code=code, data=data).broadcast()
@@ -231,6 +232,19 @@ class WifiWindows(WifiCommon):
             )
         return None
 
+    def _read_hosted_network(
+        self,
+    ) -> tuple[HostedNetworkSettings | None, HostedNetworkSecurity | None]:
+        try:
+            settings = wlanhosted.read_settings()
+        except FileNotFoundError:
+            settings = None
+        try:
+            security = wlanhosted.read_security(self.dpapi)
+        except FileNotFoundError:
+            security = None
+        return settings, security
+
     @module_thread
     async def start_access_point(
         self,
@@ -241,19 +255,15 @@ class WifiWindows(WifiCommon):
         config_changed = False
 
         self.info("Configuring Hosted Network...")
-        try:
-            old_settings = wlanhosted.read_settings()
-            if not old_settings.allowed or old_settings.not_configured:
-                old_settings = None
-        except FileNotFoundError:
+        old_settings, old_security = self._read_hosted_network()
+        if old_settings and (not old_settings.allowed or old_settings.not_configured):
             old_settings = None
-        try:
-            old_security = wlanhosted.read_security(self.dpapi)
-            system_key = old_security.system_key
-        except FileNotFoundError:
-            old_security = None
-            system_key = wlanhosted.make_security_system_key()
 
+        system_key = (
+            old_security
+            and old_security.system_key
+            or wlanhosted.make_security_system_key()
+        )
         new_settings = HostedNetworkSettings(
             ssid=network.ssid.encode(),
         )
@@ -286,6 +296,7 @@ class WifiWindows(WifiCommon):
                 data=None,
             )
 
+        self.access_point = network
         if not await self.get_access_point_state(adapter):
             self.info(f"Starting Hosted Network '{network.ssid}'")
             future = WifiAPStartedEvent.any()
@@ -313,10 +324,20 @@ class WifiWindows(WifiCommon):
     async def get_access_point_state(
         self,
         adapter: NetworkAdapter,
-    ) -> bool:
+    ) -> WifiNetwork | None:
         adapter.ensure_wifi_ap()
         status = wlanapi.WlanHostedNetworkQueryStatus()
-        return status.state == WlanHostedNetworkStatus.State.ACTIVE
+        if status.state != WlanHostedNetworkStatus.State.ACTIVE:
+            return None
+        if self.access_point is None:
+            # read settings from registry if started outside of WifiModule
+            settings, security = self._read_hosted_network()
+            if settings and security:
+                self.access_point = WifiNetwork(
+                    ssid=settings.ssid.decode(),
+                    password=security.user_key,
+                )
+        return self.access_point
 
     @module_thread
     async def get_access_point_clients(

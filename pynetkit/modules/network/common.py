@@ -11,21 +11,32 @@ from pynetkit.types import NetworkAdapter
 
 
 class NetworkCommon(ModuleBase):
+    IFACE_BLACKLIST_NAMES = []
+    IFACE_BLACKLIST_WORDS = []
+
     @module_thread
     async def list_adapters(self) -> list[NetworkAdapter]:
         adapters = []
-        for ifadapter in ifaddr.get_adapters():
+        for ifadapter in ifaddr.get_adapters(include_unconfigured=True):
             adapter = NetworkAdapter(
                 ifadapter=ifadapter,
                 name=ifadapter.nice_name,
                 type=NetworkAdapter.Type.WIRED,
             )
+            # assign hardware name if available (e.g. on Windows)
             if ifadapter.ips:
                 nice_name = ifadapter.ips[0].nice_name
                 if nice_name != ifadapter.nice_name:
                     adapter.name = nice_name
                     adapter.hardware = ifadapter.nice_name
+            # ignore known virtual adapters
+            if adapter.name in self.IFACE_BLACKLIST_NAMES:
+                continue
+            if any(s in adapter.title for s in self.IFACE_BLACKLIST_WORDS):
+                continue
             adapters.append(adapter)
+        # sort adapters by their name
+        adapters = sorted(adapters, key=lambda a: a.name)
         return adapters
 
     @module_thread
@@ -34,7 +45,8 @@ class NetworkCommon(ModuleBase):
         adapter: NetworkAdapter,
     ) -> tuple[bool, list[IPv4Interface]]:
         addresses = []
-        for ifadapter in ifaddr.get_adapters():
+        # always retrieve current IP address information
+        for ifadapter in ifaddr.get_adapters(include_unconfigured=True):
             if ifadapter.name != adapter.ifadapter.name:
                 continue
             for ip in ifadapter.ips:
@@ -57,11 +69,11 @@ class NetworkCommon(ModuleBase):
 
     async def get_adapter(
         self,
-        adapter_type: NetworkAdapter.Type,
+        *adapter_type: NetworkAdapter.Type,
     ) -> NetworkAdapter | None:
         adapters = await self.list_adapters()
         try:
-            return next(a for a in adapters if a.type == adapter_type)
+            return next(a for a in adapters if a.type in adapter_type)
         except StopIteration:
             return None
 
