@@ -97,6 +97,7 @@ class ProxyModule(ModuleBase):
                 protocol=protocol,
             ),
         )
+        self._servers.append(server)
         server.daemon_threads = True
         server.serve_forever()
 
