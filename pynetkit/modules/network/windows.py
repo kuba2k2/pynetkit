@@ -111,18 +111,19 @@ class NetworkWindows(NetworkCommon):
 
         for i, address in enumerate(addresses):
             self.info(f"Setting static IP address {address} on '{adapter.name}'")
-            self.command(
-                "netsh",
-                "interface",
-                "ipv4",
-                "set" if i == 0 else "add",
-                "address",
-                f"name={index}",
-                "source=static" if i == 0 else "",
-                f"address={address}",
-                f"gateway=none",
-                "store=active",
-            )
+            if i == 0:
+                self.command(
+                    "netsh interface ipv4 set address "
+                    f"name={index} source=static "
+                    f"address={address} gateway=none "
+                    "store=active"
+                )
+            else:
+                self.command(
+                    "netsh interface ipv4 add address "
+                    f"name={index} address={address} "
+                    "store=active"
+                )
 
         # while True:
         #     netsh = self.command(
