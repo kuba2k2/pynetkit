@@ -76,7 +76,7 @@ class DhcpModule(ModuleBase):
 
         host_name = packet[DhcpOptionType.HOST_NAME]
         vendor_cid = packet[DhcpOptionType.VENDOR_CLASS_IDENTIFIER]
-        param_list = packet[DhcpOptionType.PARAMETER_REQUEST_LIST]
+        param_list = packet[DhcpOptionType.PARAMETER_REQUEST_LIST] or []
         self.verbose(
             f"Got BOOT_REQUEST({message_type.name}) "
             f"from {packet.client_mac_address} "
