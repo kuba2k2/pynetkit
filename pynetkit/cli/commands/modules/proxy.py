@@ -309,7 +309,8 @@ class CommandModule(BaseCommandModule):
                     target = record["target"]
                     yield (
                         f"proxy set{index} "
-                        f"{source['host']} {source['port']} {source['protocol']} "
+                        + (source["host"] or '""')
+                        + f" {source['port']} {source['protocol']} "
                         + (target["host"] or '""')
                         + f" {target['port']} "
                         f"{target['http_proxy'] or ''}"

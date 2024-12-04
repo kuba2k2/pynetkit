@@ -218,7 +218,7 @@ class CommandModule(BaseCommandModule):
                     dns=dhcp.dns,
                     router=dhcp.router,
                     hostname=dhcp.hostname,
-                    hosts=dhcp.hosts,
+                    # hosts=dhcp.hosts,
                 )
                 for dhcp in DHCP
             ],
