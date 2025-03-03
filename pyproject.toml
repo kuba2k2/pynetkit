@@ -34,6 +34,9 @@ black = "^24.1.0"
 isort = "^5.12.0"
 autoflake = "^2.1.1"
 
+[tool.poetry.scripts]
+pynetkit = "pynetkit.cli:cli"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
