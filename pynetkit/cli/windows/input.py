@@ -317,7 +317,7 @@ class InputWindow(BaseWindow):
                 self.set_cursor()
 
             # Unrecognized escape codes (not in Keycodes.MAPPING)
-            case str() if ch[0] == "\x1B":
+            case str() if ch[0] == "\x1b":
                 warning(f"Unrecognized escape sequence: {ch.encode()}")
                 return
 

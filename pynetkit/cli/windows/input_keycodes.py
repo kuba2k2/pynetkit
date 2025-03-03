@@ -36,7 +36,7 @@ if sys.platform == "win32":
 
         MAPPING = {
             "\x08": KEY_BACKSPACE,
-            "\x7F": CTL_BKSP,
+            "\x7f": CTL_BKSP,
         }
 
 elif sys.platform == "linux":
