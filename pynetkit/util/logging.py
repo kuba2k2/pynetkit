@@ -100,8 +100,8 @@ class LoggingHandler(StreamHandler):
         # also add hooks for click.echo() calls
         setattr(click.utils, "_default_text_stdout", lambda: sys.stdout)
         setattr(click.utils, "_default_text_stderr", lambda: sys.stderr)
-        setattr(click._compat, "_get_windows_console_stream", lambda c, _, __: c)
-        setattr(click.utils, "auto_wrap_for_ansi", lambda s: s)
+        setattr(click._compat, "_get_windows_console_stream", lambda c, *_: c)
+        setattr(click.utils, "auto_wrap_for_ansi", lambda s, *_: s)
 
     def emit(self, record: LogRecord) -> None:
         message = record.msg

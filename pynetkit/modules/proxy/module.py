@@ -262,13 +262,13 @@ class ProxyHandler(BaseRequestHandler):
         while running:
             rsocks, _, xsocks = select.select([client, server], [], [], 2.0)
             for rsock in rsocks:
-                rname = "Client" if rsock == client else "Server"
+                # rname = "Client" if rsock == client else "Server"
                 wsock = client if rsock == server else server
-                wname = "Client" if wsock == client else "Server"
+                # wname = "Client" if wsock == client else "Server"
                 while True:
                     try:
                         data = rsock.recv(4096)
-                    except ConnectionError as e:
+                    except ConnectionError:
                         # self.proxy.exception("Connection error", exc_info=e)
                         running = False
                         break
@@ -279,7 +279,7 @@ class ProxyHandler(BaseRequestHandler):
                     #     self.proxy.info(line)
                     try:
                         wsock.sendall(data)
-                    except ConnectionError as e:
+                    except ConnectionError:
                         # self.proxy.exception("Connection error", exc_info=e)
                         running = False
                         break
