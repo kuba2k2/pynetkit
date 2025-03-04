@@ -165,6 +165,8 @@ def set_(
 ):
     sproto = next(p for p in ProxyProtocol if p.name == sproto)
     thost = thost or None
+    if thost == ".*":
+        thost = None
     if via and ":" in via:
         via_host, _, via_port = via.rpartition(":")
         via_port = int(via_port)
@@ -172,7 +174,7 @@ def set_(
     if sport and sport not in proxy.ports:
         warning(f"Source port {sport} is not configured as a proxy listen port")
     if via and (thost or tport) and sproto != ProxyProtocol.TLS:
-        warning("Target host/port is only applicable to TLS if used with an HTTP proxy")
+        warning("If an HTTP proxy is used, target host/port is only applicable to TLS")
     for i, item in enumerate(proxy.proxy_db):
         if not isinstance(item, tuple):
             continue

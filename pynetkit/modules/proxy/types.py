@@ -86,7 +86,7 @@ class ProxySource:
 
 @dataclass
 class ProxyTarget:
-    host: str | None
+    host: str | None = None
     port: int = 0
     # TODO protocol change option (RAW->TLS, etc)
     # protocol: ProxyProtocol = ProxyProtocol.RAW

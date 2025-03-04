@@ -43,8 +43,13 @@ class ProxyModule(ModuleBase):
     def __init__(self):
         super().__init__()
         self.address = IPv4Address("0.0.0.0")
-        self.ports = {}
-        self.proxy_db = []
+        self.ports = {
+            80: ProxyProtocol.HTTP,
+            443: ProxyProtocol.TLS,
+        }
+        self.proxy_db = [
+            (ProxySource(), ProxyTarget()),
+        ]
         self._threads = []
         self._servers = []
 
