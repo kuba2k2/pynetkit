@@ -2,8 +2,9 @@
 
 import curses
 import curses.panel
+import signal
 from enum import Enum, auto
-from logging import info, warning
+from logging import exception, info, warning
 from os.path import commonprefix
 from typing import Callable
 
@@ -42,16 +43,26 @@ class InputWindow(BaseWindow):
         self.win.nodelay(False)
         curses.curs_set(1)
         curses.mousemask(-1)
+        signal.signal(signal.SIGINT, self.handle_sigint)
         self.redraw_prompt()
 
     def run(self) -> None:
         while True:
-            ch = self.win.get_wch()
-            if ch == "\x00":
-                continue
-            ch = self.handle_escape(ch)
-            if ch:
-                self.handle_keypress(ch)
+            try:
+                ch = self.win.get_wch()
+                if ch == "\x00":
+                    continue
+                ch = self.handle_escape(ch)
+                if ch:
+                    self.handle_keypress(ch)
+            except Exception as e:  # does not catch SystemExit
+                if str(e) == "no input":
+                    # special case for Ctrl+C in curses
+                    continue
+                exception("Input handler failed", exc_info=e)
+
+    def handle_sigint(self, sig: int, frame) -> None:
+        self.handle_keypress("\x03")
 
     def handle_escape(self, ch: int | str) -> int | str | None:
         in_ch = ch
@@ -170,6 +181,11 @@ class InputWindow(BaseWindow):
                 self.run_command(line)
             # Ctrl+C
             case "\x03":
+                self.logger.emit_string(
+                    log_prefix="",
+                    message="\n" + self.prompt + self.lines[self.index] + "^C",
+                    color="bright_cyan",
+                )
                 self.reset_prompt()
 
             # Arrow Up/Down keys
