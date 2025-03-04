@@ -6,11 +6,12 @@ from pynetkit.modules.base import ModuleBase
 
 from .common import NetworkCommon
 
-ModuleImpl = None
 if ModuleBase.is_windows():
-    from .windows import NetworkWindows
-
-    ModuleImpl = NetworkWindows
+    from .windows import NetworkWindows as ModuleImpl
+elif ModuleBase.is_linux():
+    from .linux import NetworkLinux as ModuleImpl
+else:
+    raise NotImplementedError("Platform not supported")
 
 
 class NetworkModule(ModuleImpl, NetworkCommon, ABC):
