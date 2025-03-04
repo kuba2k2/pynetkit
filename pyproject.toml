@@ -24,10 +24,11 @@ sslpsk3 = "^1.1.1"
 dnslib = "^0.9.25"
 click = "^8.1.7"
 windows-curses = {version = "^2.3.3", platform = "win32"}
-prettytable = "^3.10.2"
+prettytable = "^3.12.0"
 colorama = "^0.4.6"
 cloup = "^3.0.5"
 importlib-metadata = "*"
+bitstruct = "^8.20.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.1.0"
