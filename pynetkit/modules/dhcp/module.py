@@ -7,6 +7,7 @@ from socket import AF_INET, IPPROTO_UDP, SO_BROADCAST, SOCK_DGRAM, SOL_SOCKET, s
 from macaddress import MAC
 
 from pynetkit.modules.base import ModuleBase
+from pynetkit.util.misc import wake_udp_socket
 
 from .enums import DhcpMessageType, DhcpOptionType, DhcpPacketType
 from .events import DhcpLeaseEvent
@@ -50,6 +51,7 @@ class DhcpModule(ModuleBase):
 
     async def cleanup(self) -> None:
         if self._sock:
+            wake_udp_socket(self.address, self.port)
             self._sock.close()
         self._sock = None
 

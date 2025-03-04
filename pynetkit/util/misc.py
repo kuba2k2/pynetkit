@@ -1,7 +1,9 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-6-16.
 
 import re
+from ipaddress import IPv4Address
 from pathlib import Path
+from socket import AF_INET, IPPROTO_UDP, SOCK_DGRAM, socket
 from typing import Iterable
 
 
@@ -38,3 +40,12 @@ def filter_dict(obj: dict, keys: Iterable) -> dict:
             if key not in keys:
                 obj.pop(key)
     return obj
+
+
+def wake_udp_socket(address: IPv4Address, port: int):
+    # send an empty datagram to break out of recvfrom()
+    sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+    if int(address) == 0:  # 0.0.0.0
+        address = "127.0.0.1"
+    sock.sendto(b"", (str(address), port))
+    sock.close()

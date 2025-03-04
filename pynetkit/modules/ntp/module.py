@@ -13,6 +13,7 @@ from socket import (
 )
 
 from pynetkit.modules.base import ModuleBase
+from pynetkit.util.misc import wake_udp_socket
 
 from .events import NtpSyncEvent
 from .structs import NtpPacket
@@ -48,6 +49,7 @@ class NtpModule(ModuleBase):
 
     async def cleanup(self) -> None:
         if self._sock:
+            wake_udp_socket(self.address, self.port)
             self._sock.close()
         self._sock = None
 
