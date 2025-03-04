@@ -94,6 +94,10 @@ class LoggingHandler(StreamHandler):
 
     # noinspection PyUnresolvedReferences,PyProtectedMember
     def hook_stdout(self):
+        # keep original values
+        if not hasattr(sys.stdout, "_write_hook"):
+            setattr(sys.stdout, "_write_hook", sys.stdout.write)
+            setattr(sys.stderr, "_write_hook", sys.stderr.write)
         # hook stdout/stderr write() to capture all messages
         sys.stdout.write = self.write
         sys.stderr.write = self.write
@@ -102,6 +106,12 @@ class LoggingHandler(StreamHandler):
         setattr(click.utils, "_default_text_stderr", lambda: sys.stderr)
         setattr(click._compat, "_get_windows_console_stream", lambda c, *_: c)
         setattr(click.utils, "auto_wrap_for_ansi", lambda s, *_: s)
+
+    def unhook_stdout(self):
+        if not hasattr(sys.stdout, "_write_hook"):
+            return
+        sys.stdout.write = getattr(sys.stdout, "_write_hook")
+        sys.stderr.write = getattr(sys.stderr, "_write_hook")
 
     def emit(self, record: LogRecord) -> None:
         message = record.msg

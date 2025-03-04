@@ -14,9 +14,6 @@ import click
 
 from pynetkit.util.logging import VERBOSE, LoggingHandler
 
-from .cli_curses import cli_curses
-from .cli_simple import cli_simple
-
 VERBOSITY_LEVEL = {
     0: INFO,
     1: DEBUG,
@@ -86,8 +83,12 @@ def cli_entrypoint(
         pydevd_pycharm.settrace("127.0.0.1", port=1234, suspend=False)
 
     if sys.stdout.isatty() and not simple:
+        from .cli_curses import cli_curses
+
         cli_curses()
     else:
+        from .cli_simple import cli_simple
+
         cli_simple()
 
 
