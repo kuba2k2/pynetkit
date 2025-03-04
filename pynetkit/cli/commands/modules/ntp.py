@@ -1,11 +1,13 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-25.
 
+from datetime import timedelta
 from ipaddress import IPv4Address
-from logging import warning
+from logging import error, warning
 from typing import Generator
 
 import click
 import cloup
+import pytimeparse as pytimeparse
 from click import Context
 
 from pynetkit.cli.commands.base import (
@@ -114,6 +116,39 @@ def listen(ntp: NtpModule, address: IPv4Address, port: int | None):
     mce(f"§fListen address set to: §d{ntp.address}:{ntp.port}§r")
 
 
+@cloup.command(
+    help="Set time offset for a particular host.",
+    context_settings={"ignore_unknown_options": True},
+)
+@index_option(cls=NtpModule, items=NTP, name="ntp", title="NTP server")
+@cloup.argument("address", type=IPv4Address, help="Target host address.")
+@cloup.argument(
+    "time_offset",
+    type=str,
+    nargs=-1,
+    help="Time offset to apply (like '5h', '-1 day', etc). Empty (\"\") to disable.",
+)
+def offset(ntp: NtpModule, address: IPv4Address, time_offset: tuple[str]):
+    time_offset = " ".join(time_offset)
+    if not time_offset:
+        mce(f"§fTime offset for host §d{address}§f disabled§r")
+        ntp.offset.pop(address, None)
+        return
+    sign = "+"
+    if time_offset.startswith("-"):
+        sign = "-"
+        time_offset = time_offset[1:]
+    seconds = pytimeparse.parse(time_offset)
+    if seconds is None:
+        error("Couldn't parse the supplied time offset")
+        return
+    delta = timedelta(seconds=seconds)
+    mce(f"§fTime offset for host §d{address}§f set to §d{sign}{delta}§r")
+    if sign == "-":
+        delta = -delta
+    ntp.offset[address] = delta
+
+
 class CommandModule(BaseCommandModule):
     CLI = cli
 
@@ -139,6 +174,10 @@ class CommandModule(BaseCommandModule):
                 dict(
                     address=ntp.address,
                     port=ntp.port,
+                    offset={
+                        str(address): int(delta.total_seconds())
+                        for address, delta in ntp.offset.items()
+                    },
                 )
                 for ntp in NTP
             ],
@@ -155,8 +194,10 @@ class CommandModule(BaseCommandModule):
                     yield f"ntp listen{index} {item['address']} {item['port']}"
                 else:
                     yield f"ntp listen{index} {item['address']}"
+            for address, seconds in item.get("offset", {}).items():
+                yield f"ntp offset{index} {address} {seconds} sec"
 
 
 cli.section("Module operation", start, stop, create, destroy)
-cli.section("Primary options", listen)
+cli.section("Primary options", listen, offset)
 COMMAND = CommandModule()

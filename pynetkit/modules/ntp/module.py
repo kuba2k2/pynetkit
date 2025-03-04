@@ -1,6 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-25.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from socket import (
     AF_INET,
@@ -25,6 +25,7 @@ class NtpModule(ModuleBase):
     address: IPv4Address
     port: int
     # runtime configuration
+    offset: dict[IPv4Address | None, timedelta] | None = None
     # server handle
     _sock: socket | None = None
 
@@ -32,6 +33,7 @@ class NtpModule(ModuleBase):
         super().__init__()
         self.address = IPv4Address("0.0.0.0")
         self.port = 123
+        self.offset = {}
 
     async def run(self) -> None:
         self.info(f"Starting NTP server on {self.address}:{self.port}")
@@ -64,7 +66,13 @@ class NtpModule(ModuleBase):
             self.warning(f"Invalid NTP packet: {e}")
             return
 
-        now = datetime.now()
+        offset = timedelta()
+        if None in self.offset:
+            offset = self.offset[None]
+        if address in self.offset:
+            offset = self.offset[address]
+
+        now = datetime.now() + offset
         packet = NtpPacket(
             flags=NtpPacket.Flags(li=0, vn=3, mode=4),
             stratum=1,
