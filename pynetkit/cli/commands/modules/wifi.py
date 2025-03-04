@@ -107,7 +107,10 @@ def cli(ctx: Context):
                 MODE_NAMES[config.adapter.type],
                 "STA" if idx in STACONFIG else "AP" if idx in APCONFIG else "None",
                 network and network.ssid or "",
-                network and network.password.decode("utf-8", "replace") or "",
+                network
+                and network.password
+                and network.password.decode("utf-8", "replace")
+                or "",
             ]
         )
     click.echo(table.get_string())
@@ -172,10 +175,13 @@ async def scan(index: int):
     table.align = "l"
     for network in networks:
         SCAN[network.ssid] = network
+        auth = network.auth and network.auth.name or "Open"
+        auth = auth.replace("|", ", ").replace("_", " ")
+        auth = auth.replace(" PSK", "").replace(" ENT", " Enterprise")
         table.add_row(
             [
                 network.ssid,
-                network.auth and network.auth.name or "Open",
+                auth,
                 network.cipher and network.cipher.name or "",
                 f"{network.rssi} dBm",
                 network.ad_hoc and "Yes" or "",
