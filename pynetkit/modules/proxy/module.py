@@ -74,6 +74,7 @@ class ProxyModule(ModuleBase):
 
     # noinspection DuplicatedCode
     async def stop(self) -> None:
+        self.should_run = False
         for server in self._servers:
             server.shutdown()
         for thread in self._threads:

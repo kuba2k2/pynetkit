@@ -97,6 +97,7 @@ class HttpModule(ModuleBase):
         await asyncio.gather(http_future, https_future)
 
     async def stop(self) -> None:
+        self.should_run = False
         if self._http:
             self._http.shutdown()
             self._http_thread.join()

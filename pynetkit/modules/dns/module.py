@@ -43,6 +43,7 @@ class DnsModule(ModuleBase, BaseResolver):
             self._dns.start()
 
     async def stop(self) -> None:
+        self.should_run = False
         await self.cleanup()
         await super().stop()
 

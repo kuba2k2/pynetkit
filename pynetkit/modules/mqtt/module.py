@@ -137,6 +137,7 @@ class MqttModule(ModuleBase):
                     self.exception("Message handler raised exception", exc_info=e)
 
     async def stop(self) -> None:
+        self.should_run = False
         await super().stop()
         if self._broker:
             self._broker_loop.stop()

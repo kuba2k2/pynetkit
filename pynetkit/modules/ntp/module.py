@@ -42,6 +42,7 @@ class NtpModule(ModuleBase):
             self._process_request()
 
     async def stop(self) -> None:
+        self.should_run = False
         await self.cleanup()
         await super().stop()
 
@@ -52,6 +53,8 @@ class NtpModule(ModuleBase):
 
     def _process_request(self) -> None:
         request, addr = self._sock.recvfrom(4096)
+        if not self.should_run:
+            return
         address = IPv4Address(addr[0])
         try:
             packet = NtpPacket.unpack(request)
