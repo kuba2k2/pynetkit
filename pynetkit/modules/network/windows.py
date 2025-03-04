@@ -14,13 +14,15 @@ from .common import NetworkCommon
 
 class NetworkWindows(NetworkCommon):
     IFACE_BLACKLIST_WORDS = [
-        "VMware",
-        "VirtualBox",
         "ISATAP",
         "Loopback",
         "Wintun",
-        "Bluetooth",
         "Microsoft 6to4 Adapter",
+    ]
+    IFACE_VIRTUAL_WORDS = [
+        "VMware",
+        "VirtualBox",
+        "Bluetooth",
     ]
 
     def _get_index(self, adapter: NetworkAdapter) -> int:

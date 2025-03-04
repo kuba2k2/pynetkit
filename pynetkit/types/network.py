@@ -14,6 +14,7 @@ class NetworkAdapter:
         WIRELESS = auto()
         WIRELESS_STA = auto()
         WIRELESS_AP = auto()
+        VIRTUAL = auto()
 
     ifadapter: ifaddr.Adapter
     name: str

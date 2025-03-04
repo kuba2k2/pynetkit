@@ -57,6 +57,7 @@ TYPE_NAMES = {
     NetworkAdapter.Type.WIRELESS: "Wireless",
     NetworkAdapter.Type.WIRELESS_STA: "Wireless Station",
     NetworkAdapter.Type.WIRELESS_AP: "Wireless AP",
+    NetworkAdapter.Type.VIRTUAL: "Virtual",
 }
 
 
@@ -143,8 +144,9 @@ def cli(ctx: Context):
 
 
 @cloup.command(help="List available network adapters.", name="list")
+@cloup.option("-a", "--all", is_flag=True, help="Also list virtual adapters.")
 @async_command
-async def list_():
+async def list_(all: bool):
     await network_start()
     mce(f"§fListing network adapters...§r")
     table = ColorTable(
@@ -154,6 +156,8 @@ async def list_():
     table.align = "l"
     adapters = await network.list_adapters()
     for adapter in adapters:
+        if adapter.type == NetworkAdapter.Type.VIRTUAL and not all:
+            continue
         config = adapter_to_config(adapter)
         dhcp, addresses = await network.get_adapter_addresses(adapter)
         table.add_row(
@@ -200,6 +204,7 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
         "wifi": (NetworkAdapter.Type.WIRELESS, NetworkAdapter.Type.WIRELESS_STA),
         "sta": (NetworkAdapter.Type.WIRELESS_STA, NetworkAdapter.Type.WIRELESS),
         "ap": (NetworkAdapter.Type.WIRELESS_AP, NetworkAdapter.Type.WIRELESS),
+        "virtual": (NetworkAdapter.Type.VIRTUAL),
     }
     adapter: NetworkAdapter | None = None
     # search by adapter type
@@ -242,6 +247,7 @@ async def use(index: int, query: str, no_replace: bool, keep: bool):
     # save the query and config mapping
     config.adapter = adapter
     config.query = query
+    # fetch currently assigned addresses
     config.dhcp, config.addresses = await network.get_adapter_addresses(config.adapter)
     if config.dhcp:
         config.addresses = []

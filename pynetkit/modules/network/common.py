@@ -13,6 +13,8 @@ from pynetkit.types import NetworkAdapter
 class NetworkCommon(ModuleBase):
     IFACE_BLACKLIST_NAMES = []
     IFACE_BLACKLIST_WORDS = []
+    IFACE_VIRTUAL_NAMES = []
+    IFACE_VIRTUAL_WORDS = []
 
     @module_thread
     async def list_adapters(self) -> list[NetworkAdapter]:
@@ -35,6 +37,12 @@ class NetworkCommon(ModuleBase):
             if any(s in adapter.title for s in self.IFACE_BLACKLIST_WORDS):
                 continue
             adapters.append(adapter)
+        # mark known virtual adapters (those not already ignored)
+        for adapter in adapters:
+            if adapter.name in self.IFACE_VIRTUAL_NAMES:
+                adapter.type = NetworkAdapter.Type.VIRTUAL
+            elif any(s in adapter.title for s in self.IFACE_VIRTUAL_WORDS):
+                adapter.type = NetworkAdapter.Type.VIRTUAL
         # sort adapters by their name
         adapters = sorted(adapters, key=lambda a: a.name)
         return adapters
