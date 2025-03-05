@@ -144,55 +144,68 @@ def port_(proxy: ProxyModule, port: int, protocol: str):
 
 @cloup.command(help="Set a proxy target for the given source.", name="set")
 @index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
-@cloup.argument("shost", help='Source host name (RegEx, i.e. ".*").')
-@cloup.argument("sport", type=int, help="Source port number (0 to match any).")
 @cloup.argument(
-    "sproto",
-    type=Choice([p.name for p in ProxyProtocol], case_sensitive=False),
-    help="Source protocol type (RAW/TLS/HTTP/ANY).",
+    "source",
+    help='Source [scheme://]host[:port] (accepts RegEx). Use ".*" to match any.',
 )
-@cloup.argument("thost", help='Target host name ("" means same as source).')
-@cloup.argument("tport", type=int, help="Target port number (0 means same as source).")
-@cloup.argument("via", required=False, help="HTTP proxy for the request (host:port).")
+@cloup.argument(
+    "target",
+    help='Target host[:port]. Use ".*" to leave source unchanged.',
+)
+@cloup.argument(
+    "via",
+    required=False,
+    help="HTTP proxy for the request, optional (host:port).",
+)
 def set_(
     proxy: ProxyModule,
-    shost: str,
-    sport: int,
-    sproto: str,
-    thost: str,
-    tport: int,
+    source: str,
+    target: str,
     via: str | None,
 ):
-    sproto = next(p for p in ProxyProtocol if p.name == sproto)
-    thost = thost or None
-    if thost == ".*":
-        thost = None
+    source = ProxySource.parse(source)
+    if not source:
+        error(f"Couldn't parse source URL: {source}")
+    target = ProxyTarget.parse(target)
+    if not target:
+        error(f"Couldn't parse target URL: {target}")
+        return
+    if not source:
+        return
+
     if via and ":" in via:
         via_host, _, via_port = via.rpartition(":")
         via_port = int(via_port)
-        via = via_host, via_port
-    if sport and sport not in proxy.ports:
-        warning(f"Source port {sport} is not configured as a proxy listen port")
-    if via and (thost or tport) and sproto != ProxyProtocol.TLS:
+        target.http_proxy = via_host, via_port
+
+    # check some known bad usages
+    if target.host == ".*":
+        target.host = None
+    if source.port and source.port not in proxy.ports:
+        warning(f"Source port {source.port} is not configured as a proxy listen port")
+    if (
+        target.http_proxy
+        and (target.host or target.port)
+        and source.protocol != ProxyProtocol.TLS
+    ):
         warning("If an HTTP proxy is used, target host/port is only applicable to TLS")
+
     for i, item in enumerate(proxy.proxy_db):
         if not isinstance(item, tuple):
             continue
-        source: ProxySource = item[0]
-        if shost != source.host or sport != source.port or sproto != source.protocol:
+        prev_source: ProxySource = item[0]
+        if prev_source != source:
             continue
-        target: ProxyTarget = item[1]
-        proxy.proxy_db[i] = source, ProxyTarget(thost, tport, http_proxy=via)
+        prev_target: ProxyTarget = item[1]
+        proxy.proxy_db[i] = source, target
         mce(
             f"§fProxy record replaced"
             f" - source: §d{source}§f"
-            f" - was: §d{target}§f"
-            f" - now: §d{proxy.proxy_db[i][1]}§r"
+            f" - was: §d{prev_target}§f"
+            f" - now: §d{target}§r"
         )
         break
     else:
-        source = ProxySource(shost, sport, sproto)
-        target = ProxyTarget(thost, tport, http_proxy=via)
         proxy.proxy_db.append((source, target))
         mce(f"§fNew proxy added" f" - source: §d{source}§f" f" - now: §d{target}§f")
 
@@ -306,16 +319,21 @@ class CommandModule(BaseCommandModule):
                 for record in item["ports"]:
                     yield f"proxy port{index} {record['port']} {record['protocol']}"
             if item.get("proxy_db"):
+                yield f"proxy clear{index}"
                 for record in item["proxy_db"]:
                     source = record["source"]
                     target = record["target"]
+                    source_url = source["host"] or ".*"
+                    target_url = target["host"] or ".*"
+                    if source["port"]:
+                        source_url += f":{source['port']}"
+                    if target["port"]:
+                        target_url += f":{target['port']}"
+                    if source["protocol"] != "ANY":
+                        source_url = source["protocol"].lower() + "://" + source_url
                     yield (
-                        f"proxy set{index} "
-                        + (source["host"] or '""')
-                        + f" {source['port']} {source['protocol']} "
-                        + (target["host"] or '""')
-                        + f" {target['port']} "
-                        f"{target['http_proxy'] or ''}"
+                        f'proxy set{index} "{source_url}" "{target_url}"'
+                        f" {target['http_proxy'] or ''}"
                     )
 
 

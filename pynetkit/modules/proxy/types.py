@@ -1,12 +1,15 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
+import re
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum, auto
 from socket import socket
-from typing import IO
+from typing import IO, Optional
 
 from pynetkit.util.misc import matches
+
+URL_REGEX = re.compile(r"^(?:(raw|tcp|tls|https?)://)?([^:/]*?)(:\d+)?(/.*)?$")
 
 
 class SocketIO(IO[bytes], ABC):
@@ -80,6 +83,24 @@ class ProxySource:
             return False
         return bool(matches(self.host, other.host))
 
+    @staticmethod
+    def parse(url: str) -> Optional["ProxySource"]:
+        match = URL_REGEX.match(url)
+        if not match:
+            return None
+        protocol_map = dict(
+            raw=ProxyProtocol.RAW,
+            tcp=ProxyProtocol.RAW,
+            tls=ProxyProtocol.TLS,
+            https=ProxyProtocol.TLS,
+            http=ProxyProtocol.HTTP,
+        )
+        return ProxySource(
+            host=match[2] or ".*",
+            port=int(match[3]) if match[3] else 0,
+            protocol=protocol_map[match[1]] if match[1] else ProxyProtocol.ANY,
+        )
+
     def __str__(self) -> str:
         return f"{self.host}:{self.port or '*'} ({self.protocol.name})"
 
@@ -96,6 +117,18 @@ class ProxyTarget:
         if not self.port and self.host and ":" in self.host:
             self.host, _, self.port = self.host.rpartition(":")
             self.port = int(self.port)
+
+    @staticmethod
+    def parse(url: str) -> Optional["ProxyTarget"]:
+        match = URL_REGEX.match(url)
+        if not match:
+            return None
+        if match[1]:
+            raise ValueError("Protocol cannot be specified for proxy target")
+        return ProxyTarget(
+            host=match[2] or None,
+            port=int(match[3]) if match[3] else 0,
+        )
 
     def __str__(self) -> str:
         return f"{self.host or '*'}:{self.port or self.port or '*'}" + (
