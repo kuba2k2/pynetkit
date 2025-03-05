@@ -183,12 +183,6 @@ def set_(
         target.host = None
     if source.port and source.port not in proxy.ports:
         warning(f"Source port {source.port} is not configured as a proxy listen port")
-    if (
-        target.http_proxy
-        and (target.host or target.port)
-        and source.protocol != ProxyProtocol.TLS
-    ):
-        warning("If an HTTP proxy is used, target host/port is only applicable to TLS")
 
     for i, item in enumerate(proxy.proxy_db):
         if not isinstance(item, tuple):

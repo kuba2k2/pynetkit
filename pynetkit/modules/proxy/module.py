@@ -247,20 +247,31 @@ class ProxyHandler(BaseRequestHandler):
             server.connect((target.host, target.port))
         else:
             server.connect(target.http_proxy)
-            if source.protocol == ProxyProtocol.TLS:
+            if source.protocol != ProxyProtocol.HTTP:  # TLS and RAW
                 connect = f"CONNECT {target.host}:{target.port} HTTP/1.1"
                 server.sendall(f"{connect}\r\n\r\n".encode())
                 io = SocketIO(server)
                 data = io.read_until(b"\r\n\r\n")
                 status = data.partition(b"\r\n")[0]
                 if b"200" in status:
-                    self.proxy.debug(f"Connected to HTTPS proxy")
+                    self.proxy.debug(f"Connected to {source.protocol.name} proxy")
                 else:
                     self.proxy.warning(f"Couldn't connect to HTTPS proxy: {status}")
                     client.sendall(data)
                     initial_data = b""
             else:
-                self.proxy.debug(f"Connected to HTTP proxy")
+                self.proxy.debug("Connected to HTTP proxy")
+                # patch the request line to include target host/port
+                method, delimiter, request = initial_data.partition(b" /")
+                if delimiter:
+                    target_host = f"http://{target.host}"
+                    if target.port != 80:
+                        target_host += f":{target.port}"
+                    initial_data = method + b" " + target_host.encode() + b"/" + request
+                else:
+                    self.proxy.warning(
+                        f"HTTP request line invalid - {str(initial_data)[0:50]} [...]"
+                    )
 
         if initial_data:
             server.sendall(initial_data)

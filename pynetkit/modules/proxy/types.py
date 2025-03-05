@@ -9,7 +9,7 @@ from typing import IO, Optional
 
 from pynetkit.util.misc import matches
 
-URL_REGEX = re.compile(r"^(?:(raw|tcp|tls|https?)://)?([^:/]*?)(:\d+)?(/.*)?$")
+URL_REGEX = re.compile(r"^(?:(raw|tcp|tls|https?)://)?([^:/]*?)(?::(\d+))?(/.*)?$")
 
 
 class SocketIO(IO[bytes], ABC):
