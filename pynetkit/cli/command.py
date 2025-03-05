@@ -1,5 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-10.
 
+import os
 import shlex
 from logging import error, exception
 
@@ -72,7 +73,13 @@ def get_command(line: str) -> tuple[BaseCommand | None, str, list[str]]:
         return None, cmd, []
     # otherwise process the command line arguments
     if isinstance(args, str):
-        args = shlex.split(args)
+        args = shlex.split(args, posix=os.name != "nt")
+        if os.name == "nt":
+            # shlex.split() in non-POSIX mode doesn't strip quotes
+            for i, arg in enumerate(args):
+                if arg and arg[0] == arg[-1] and arg[0] in "'\"":
+                    arg = arg[1:-1]
+                args[i] = arg
     else:
         args = []
     return module.CLI, cmd, args
