@@ -100,13 +100,15 @@ class BaseCommandModule:
             callback=self._help,
         )(command)
         if isinstance(command, Group):
-            command.command(name="?", hidden=True)(click.pass_obj(self._help))
-            command.command(name="help", hidden=True)(click.pass_obj(self._help))
+            command.command(name="?", hidden=True)(click.pass_context(self._help))
+            command.command(name="help", hidden=True)(click.pass_context(self._help))
             for command in command.commands.values():
                 self._add_help(command)
 
     @staticmethod
     def _help(ctx: Context, _: Any = None, value: bool = True) -> None:
+        if ctx.command.name in ["?", "help"]:
+            ctx = ctx.parent
         if not value or ctx.resilient_parsing:
             return
         click.echo(ctx.get_help(), color=ctx.color)
