@@ -1,6 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
 import asyncio
+import re
 import select
 import socketserver
 from asyncio import Future
@@ -200,6 +201,7 @@ class ProxyHandler(BaseRequestHandler):
             case _:
                 raise RuntimeError("Unknown protocol")
 
+        source_match: ProxySource | None = None
         for handler in self.proxy.proxy_db:
             if callable(handler):
                 target = handler(source, io)
@@ -218,6 +220,15 @@ class ProxyHandler(BaseRequestHandler):
             target.port = source.port
         if not target.host:
             raise ValueError(f"Couldn't determine target hostname for {source}")
+
+        # perform RegEx replacements, if needed
+        if source_match:
+            if source.host and "$" in target.host and "(" in source_match.host:
+                target.host = re.sub(
+                    source_match.host,
+                    target.host.replace("$", "\\"),
+                    source.host,
+                )
 
         proxy_path = (
             f"{self.client_address[0]}:{self.client_address[1]} "

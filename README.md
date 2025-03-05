@@ -222,17 +222,18 @@ All options except `listen` and `port` can be configured while the server is run
 - (no parameters) - Show the proxy server state and configured routes.
 - `listen <address>` - Allows to change the listen address (default: `0.0.0.0`).
 - `port <port> <protocol>` - Add a **listening port**, assign the specified protocol (`any`, `raw`, `tls`, `http`).
-- `set <src host> <src port> <protocol> <dst host> <dst port> [proxy]` - Create/modify a **proxy route** (see below).
+- `set <source> <target> [proxy]` - Create/modify a **proxy route** (see below).
 - `move <from> <to>` - Move a **route** between indexes (the first matching route is used when proxying).
 
 The proxy ports must be configured first - **the proxy will only listen on these ports**.
 
 Then, a **route** must be created - routes are basically instructions for where to proxy the traffic.
-- The source hostname is a RegEx (`.*` will match any hostname).
-- The source port can be 0 to match any port.
-- The target hostname can be empty (`""`) to use the source hostname.
-- The target port can be 0 to use the source port.
-- The `proxy` parameter specifies an external HTTP proxy address.
+- Source format is: `scheme://host:port`, where `scheme` and `port` are optional (will match any).
+- Target format is: `host:port`, where `port` is optional (will match any).
+- The `host` part in `source` can be a RegEx. Capture groups in `target` can be referenced using `$1`, `$2`, etc. 
+- Use `.*` or `""` for `source` to match any request.
+- Use `.*` or `""` for `target` to use the same address as source.
+- The optional `proxy` parameter specifies an external HTTP proxy address.
 
 Perhaps a better way to understand the configuration will be to see what happens for each request:
 
@@ -242,6 +243,9 @@ Perhaps a better way to understand the configuration will be to see what happens
 4. **Forward traffic transparently** to the target hostname/port, optionally via an external HTTP proxy.
 
 By default, the proxy module is configured to forward traffic on ports 80 and 443 to the origin server.
+
+**Remember:** the proxy does NOT modify requests! If you specify a different target host name, it will be contacted with
+the **original** request - that is, the `Host:` header or TLS SNI values will NOT be modified.
 
 ## Using pynetkit programmatically
 
