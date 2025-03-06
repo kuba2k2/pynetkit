@@ -37,6 +37,9 @@ if sys.platform == "win32":
         MAPPING = {
             "\x08": KEY_BACKSPACE,
             "\x7f": CTL_BKSP,
+            # for some reason, quotation marks are returned like this on some laptops
+            curses.CTL_PADENTER: '"',
+            curses.SHF_PADENTER: "'",
         }
 
 elif sys.platform == "linux":
