@@ -146,11 +146,11 @@ def port_(proxy: ProxyModule, port: int, protocol: str):
 @index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
 @cloup.argument(
     "source",
-    help='Source [scheme://]host[:port] (accepts RegEx). Use ".*" to match any.',
+    help='Source [scheme://]host[:port][/path] (accepts RegEx). Use ".*" to match any.',
 )
 @cloup.argument(
     "target",
-    help='Target host[:port]. Use ".*" to leave source unchanged.',
+    help='Target host[:port][/path]. Use ".*" to leave source unchanged.',
 )
 @cloup.argument(
     "via",
@@ -183,6 +183,9 @@ def set_(
         target.host = None
     if source.port and source.port not in proxy.ports:
         warning(f"Source port {source.port} is not configured as a proxy listen port")
+    if source.path and source.protocol != ProxyProtocol.HTTP:
+        warning(f"Source path can only be used for HTTP, changing...")
+        source.protocol = ProxyProtocol.HTTP
 
     for i, item in enumerate(proxy.proxy_db):
         if not isinstance(item, tuple):
@@ -255,11 +258,13 @@ class CommandModule(BaseCommandModule):
                     source=dict(
                         host=source.host,
                         port=source.port,
+                        path=source.path,
                         protocol=source.protocol.name,
                     ),
                     target=dict(
                         host=target.host,
                         port=target.port,
+                        path=target.path,
                         http_proxy=target.http_proxy
                         and f"{target.http_proxy[0]}:{target.http_proxy[1]}"
                         or None,
@@ -319,11 +324,15 @@ class CommandModule(BaseCommandModule):
                     target = record["target"]
                     source_url = source["host"] or ".*"
                     target_url = target["host"] or ".*"
-                    if source["port"]:
+                    if source.get("port"):
                         source_url += f":{source['port']}"
-                    if target["port"]:
+                    if target.get("port"):
                         target_url += f":{target['port']}"
-                    if source["protocol"] != "ANY":
+                    if source.get("path"):
+                        source_url += source["path"]
+                    if target.get("path"):
+                        target_url += target["path"]
+                    if source.get("protocol", "ANY") != "ANY":
                         source_url = source["protocol"].lower() + "://" + source_url
                     yield (
                         f'proxy set{index} "{source_url}" "{target_url}"'

@@ -228,9 +228,11 @@ All options except `listen` and `port` can be configured while the server is run
 The proxy ports must be configured first - **the proxy will only listen on these ports**.
 
 Then, a **route** must be created - routes are basically instructions for where to proxy the traffic.
-- Source format is: `scheme://host:port`, where `scheme` and `port` are optional (will match any).
-- Target format is: `host:port`, where `port` is optional (will match any).
-- The `host` part in `source` can be a RegEx. Capture groups in `target` can be referenced using `$1`, `$2`, etc. 
+- Source format is: `[scheme://]host[:port][/path]`, where `scheme`, `port` and `path` are optional (will match any).
+- Target format is: `host[:port][/path]`, where `port` and `path` are optional (will match any).
+- The `host` and `path` parts in `source` can be a RegEx. Capture groups in `target` can be referenced using `$1`, `$2`, etc.
+- The `path` argument, if present, must begin with `/` (this alone will only match the "root" resource).
+- The `path` argument also matches the query string (`?a=b&c=d`), use something like `host.com/my/file.html(.*)` if you want to match any query.
 - Use `.*` or `""` for `source` to match any request.
 - Use `.*` or `""` for `target` to use the same address as source.
 - The optional `proxy` parameter specifies an external HTTP proxy address.
@@ -239,13 +241,15 @@ Perhaps a better way to understand the configuration will be to see what happens
 
 1. If automatic protocol matching is enabled for this port (`proxy port <...> any`), try to detect the protocol type (TLS, HTTP or raw TCP otherwise).
 2. Knowing the protocol type, try to detect the request hostname (HTTP `Host:` header, TLS handshake SNI). For raw TCP, the hostname is evaluated to `""`.
-3. Knowing the request port, hostname and protocol type, **find the first matching route**.
-4. **Forward traffic transparently** to the target hostname/port, optionally via an external HTTP proxy.
+3. For HTTP protocol, try to extract the request path. For other protocols (TLS, TCP), the path is evaluated to `""`.
+4. Knowing the request port, hostname, path and protocol type, **find the first matching route**.
+5. **Forward traffic** to the target hostname/port/path, optionally via an external HTTP proxy.
 
 By default, the proxy module is configured to forward traffic on ports 80 and 443 to the origin server.
 
 **Remember:** the proxy does NOT modify requests! If you specify a different target host name, it will be contacted with
-the **original** request - that is, the `Host:` header or TLS SNI values will NOT be modified.
+the **original** request - that is, the `Host:` header or TLS SNI values will NOT be modified. The only exception is
+when using `path` for a HTTP source/target. This will only modify the request line.
 
 ## Using pynetkit programmatically
 

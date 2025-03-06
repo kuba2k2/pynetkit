@@ -161,6 +161,7 @@ class ProxyHandler(BaseRequestHandler):
             host="",
             port=self.port,
             protocol=self.protocol,
+            path="",
         )
 
         # detect the protocol if auto matching is enabled
@@ -198,6 +199,11 @@ class ProxyHandler(BaseRequestHandler):
                 headers = [line.partition(b":") for line in initial_data.splitlines()]
                 headers = {k.strip().lower(): v.strip().lower() for k, _, v in headers}
                 source.host = headers.get(b"host", b"").decode()
+                source.path = (
+                    initial_data.partition(b" ")[2]
+                    .partition(b" ")[0]
+                    .decode("utf-8", errors="ignore")
+                )
             case _:
                 raise RuntimeError("Unknown protocol")
 
@@ -213,11 +219,14 @@ class ProxyHandler(BaseRequestHandler):
                     break
         else:
             raise ValueError(f"No handler for {source}")
-        target = ProxyTarget(target.host, target.port, target.http_proxy)
+
+        target = ProxyTarget(target.host, target.port, target.path, target.http_proxy)
         if not target.host:
             target.host = source.host
         if target.port == 0:
             target.port = source.port
+        if not target.path:
+            target.path = source.path
         if not target.host:
             raise ValueError(f"Couldn't determine target hostname for {source}")
 
@@ -229,11 +238,17 @@ class ProxyHandler(BaseRequestHandler):
                     target.host.replace("$", "\\"),
                     source.host,
                 )
+            if source.path and "$" in target.path and "(" in source_match.path:
+                target.path = re.sub(
+                    source_match.path,
+                    target.path.replace("$", "\\"),
+                    source.path,
+                )
 
         proxy_path = (
             f"{self.client_address[0]}:{self.client_address[1]} "
-            f"-> {source.host}:{source.port} "
-            f"-> {target.host}:{target.port}"
+            f"- {source.host}:{source.port}{source.path or ''} "
+            f"-> {target.host}:{target.port}{target.path or ''}"
             + (
                 f" (via {target.http_proxy[0]}:{target.http_proxy[1]})"
                 if target.http_proxy
@@ -251,6 +266,21 @@ class ProxyHandler(BaseRequestHandler):
             )
             client.close()
             return
+
+        # patch the request line if target path is specified
+        if (
+            source.protocol == ProxyProtocol.HTTP
+            and source.path != target.path
+            and target.path
+        ):
+            method, delimiter, request = initial_data.partition(b" ")
+            if delimiter:
+                source_path, _, request = request.partition(b" ")
+                initial_data = method + b" " + target.path.encode() + b" " + request
+            else:
+                self.proxy.warning(
+                    f"HTTP request line invalid - {str(initial_data)[0:50]} [...]"
+                )
 
         server = socket(AF_INET, SOCK_STREAM)
 

@@ -69,6 +69,7 @@ class ProxyProtocol(Enum):
 class ProxySource:
     host: str = ".*"
     port: int = 0
+    path: str | None = None
     protocol: ProxyProtocol = ProxyProtocol.ANY
 
     def __post_init__(self):
@@ -77,11 +78,18 @@ class ProxySource:
             self.port = int(self.port)
 
     def matches(self, other: "ProxySource") -> bool:
+        # 'self' is the pattern, 'other' is the value
         if self.port != 0 and self.port != other.port:
             return False
         if self.protocol != ProxyProtocol.ANY and self.protocol != other.protocol:
             return False
-        return bool(matches(self.host, other.host))
+        if not bool(matches(self.host, other.host)):
+            return False
+        if not self.path:
+            return True  # empty path matches anything
+        if not other.path:
+            return False  # non-empty path cannot possibly match an empty path
+        return bool(matches(self.path, other.path))
 
     @staticmethod
     def parse(url: str) -> Optional["ProxySource"]:
@@ -98,17 +106,19 @@ class ProxySource:
         return ProxySource(
             host=match[2] or ".*",
             port=int(match[3]) if match[3] else 0,
+            path=match[4] or None,
             protocol=protocol_map[match[1]] if match[1] else ProxyProtocol.ANY,
         )
 
     def __str__(self) -> str:
-        return f"{self.host}:{self.port or '*'} ({self.protocol.name})"
+        return f"{self.host}:{self.port or '*'}{self.path or ''} ({self.protocol.name})"
 
 
 @dataclass
 class ProxyTarget:
     host: str | None = None
     port: int = 0
+    path: str | None = None
     # TODO protocol change option (RAW->TLS, etc)
     # protocol: ProxyProtocol = ProxyProtocol.RAW
     http_proxy: tuple[str, int] = None
@@ -127,12 +137,16 @@ class ProxyTarget:
             raise ValueError("Protocol cannot be specified for proxy target")
         return ProxyTarget(
             host=match[2] or None,
+            path=match[4] or None,
             port=int(match[3]) if match[3] else 0,
         )
 
     def __str__(self) -> str:
-        return f"{self.host or '*'}:{self.port or self.port or '*'}" + (
-            self.http_proxy
-            and f" (via {self.http_proxy[0]}:{self.http_proxy[1]})"
-            or ""
+        return (
+            f"{self.host or '*'}:{self.port or self.port or '*'}{self.path or ''}"
+            + (
+                self.http_proxy
+                and f" (via {self.http_proxy[0]}:{self.http_proxy[1]})"
+                or ""
+            )
         )
