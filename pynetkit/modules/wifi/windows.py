@@ -84,7 +84,7 @@ class WifiWindows(WifiCommon):
 
     def _register(self):
         try:
-            self.command("net", "start", "Wlansvc")
+            self.command("net", "start", "Wlansvc", silent=True)
             self.info("Started Wlansvc")
         except RuntimeError:
             pass
