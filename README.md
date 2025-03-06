@@ -224,6 +224,7 @@ All options except `listen` and `port` can be configured while the server is run
 - `port <port> <protocol>` - Add a **listening port**, assign the specified protocol (`any`, `raw`, `tls`, `http`).
 - `set <source> <target> [proxy]` - Create/modify a **proxy route** (see below).
 - `move <from> <to>` - Move a **route** between indexes (the first matching route is used when proxying).
+- `test <URL>` - Check what target URL would be used for the given request.
 
 The proxy ports must be configured first - **the proxy will only listen on these ports**.
 

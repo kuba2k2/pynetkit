@@ -134,6 +134,47 @@ class ProxyModule(ModuleBase):
     def clear_proxy_db(self) -> None:
         self.proxy_db = []
 
+    def resolve_target(self, source: ProxySource, io: SocketIO | None) -> ProxyTarget:
+        source_match: ProxySource | None = None
+        for handler in self.proxy_db:
+            if callable(handler):
+                target = handler(source, io)
+                if target:
+                    break
+            else:
+                source_match, target = handler
+                if source_match.matches(source):
+                    break
+        else:
+            raise ValueError(f"No matching route for {source}")
+
+        target = ProxyTarget(target.host, target.port, target.path, target.http_proxy)
+        if not target.host:
+            target.host = source.host
+        if target.port == 0:
+            target.port = source.port
+        if not target.path:
+            target.path = source.path
+        if not target.host:
+            raise ValueError(f"Couldn't determine target hostname for {source}")
+
+        # perform RegEx replacements, if needed
+        if source_match:
+            if source.host and "$" in target.host and "(" in source_match.host:
+                target.host = re.sub(
+                    source_match.host,
+                    target.host.replace("$", "\\"),
+                    source.host,
+                )
+            if source.path and "$" in target.path and "(" in source_match.path:
+                target.path = re.sub(
+                    source_match.path,
+                    target.path.replace("$", "\\"),
+                    source.path,
+                )
+
+        return target
+
 
 class ProxyHandler(BaseRequestHandler):
     def __init__(
@@ -207,43 +248,7 @@ class ProxyHandler(BaseRequestHandler):
             case _:
                 raise RuntimeError("Unknown protocol")
 
-        source_match: ProxySource | None = None
-        for handler in self.proxy.proxy_db:
-            if callable(handler):
-                target = handler(source, io)
-                if target:
-                    break
-            else:
-                source_match, target = handler
-                if source_match.matches(source):
-                    break
-        else:
-            raise ValueError(f"No handler for {source}")
-
-        target = ProxyTarget(target.host, target.port, target.path, target.http_proxy)
-        if not target.host:
-            target.host = source.host
-        if target.port == 0:
-            target.port = source.port
-        if not target.path:
-            target.path = source.path
-        if not target.host:
-            raise ValueError(f"Couldn't determine target hostname for {source}")
-
-        # perform RegEx replacements, if needed
-        if source_match:
-            if source.host and "$" in target.host and "(" in source_match.host:
-                target.host = re.sub(
-                    source_match.host,
-                    target.host.replace("$", "\\"),
-                    source.host,
-                )
-            if source.path and "$" in target.path and "(" in source_match.path:
-                target.path = re.sub(
-                    source_match.path,
-                    target.path.replace("$", "\\"),
-                    source.path,
-                )
+        target = self.proxy.resolve_target(source, io)
 
         proxy_path = (
             f"{self.client_address[0]}:{self.client_address[1]} "

@@ -1,7 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-25.
 
 from ipaddress import IPv4Address
-from logging import error, warning
+from logging import error, info, warning
 from types import FunctionType
 from typing import Generator
 
@@ -184,7 +184,9 @@ def set_(
     if source.port and source.port not in proxy.ports:
         warning(f"Source port {source.port} is not configured as a proxy listen port")
     if source.path and source.protocol != ProxyProtocol.HTTP:
-        warning(f"Source path can only be used for HTTP, changing...")
+        if source.protocol != ProxyProtocol.ANY:
+            error("Source path can only be used for HTTP")
+            return
         source.protocol = ProxyProtocol.HTTP
 
     for i, item in enumerate(proxy.proxy_db):
@@ -243,6 +245,44 @@ def move(proxy: ProxyModule, index1: int, index2: int):
     item1 = proxy.proxy_db.pop(index1)
     proxy.proxy_db.insert(index2, item1)
     mce(f"§fProxy record §d{index1 + 1}§f moved to position §d{index2 + 1}§r.")
+
+
+@cloup.command(help="Test proxy routing target for the given URL.")
+@index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
+@cloup.argument("request", help="Source request URL/hostname.")
+def test(proxy: ProxyModule, request: str):
+    request = ProxySource.parse(request)
+    if not request:
+        error(f"Couldn't parse request URL: {request}")
+        return
+    if not request.host or request.host == ".*":
+        error("Request host name missing")
+        return
+
+    if request.port and request.port not in proxy.ports:
+        warning(f"Request port {request.port} is not configured as a proxy listen port")
+    if request.protocol == ProxyProtocol.ANY:
+        warning("Request protocol not specified, assuming HTTP")
+        request.protocol = ProxyProtocol.HTTP
+
+    if request.path and request.protocol != ProxyProtocol.HTTP:
+        if request.protocol != ProxyProtocol.ANY:
+            error("Request path can only be used for HTTP")
+            return
+        request.protocol = ProxyProtocol.HTTP
+
+    if not request.port:
+        if request.protocol == ProxyProtocol.HTTP:
+            request.port = 80
+        elif request.protocol == ProxyProtocol.TLS:
+            request.port = 443
+        else:
+            error("Request port is required for raw TCP")
+            return
+
+    info(f"Source: {request}")
+    target = proxy.resolve_target(request, None)
+    info(f"Target: {target}")
 
 
 class CommandModule(BaseCommandModule):
@@ -342,5 +382,6 @@ class CommandModule(BaseCommandModule):
 
 cli.section("Module operation", start, stop, create, destroy)
 cli.section("Proxy configuration", listen, port_)
-cli.section("Record management", set_, move, delete, clear)
+cli.section("Record management", set_, delete, clear)
+cli.section("Record priority & validation", move, test)
 COMMAND = CommandModule()
