@@ -22,7 +22,20 @@ class BaseEvent:
         make_attr_dict(cls, "__subscribers__")[future] = cls
         return future
 
+    def subscribe(self, handler: Callable[["BaseEvent"], None]) -> None:
+        make_attr_dict(type(self), "__subscribers__")[handler] = self
+
+    @classmethod
+    def subscribe_all(cls, handler: Callable[["BaseEvent"], None]) -> None:
+        make_attr_dict(cls, "__subscribers__")[handler] = cls
+
+    @classmethod
+    def unsubscribe(cls, handler: Callable[["BaseEvent"], None]) -> None:
+        make_attr_dict(cls, "__subscribers__").pop(handler, None)
+
     def broadcast(self) -> None:
+        from .event import EventMixin
+
         setattr(self, "__used__", True)
         subs: dict[Any | Future, type | object] = dict()
         # find subscribers of all superclasses
@@ -36,16 +49,22 @@ class BaseEvent:
         # fill event queues and resolve futures
         futures = set()
         for sub, obj in subs.items():
+            type_matches = isinstance(obj, type) and isinstance(self, obj)
+            value_matches = self == obj
             if isinstance(sub, Future):
                 # make sure the object matches
-                type_matches = isinstance(obj, type) and isinstance(self, obj)
-                value_matches = self == obj
                 if type_matches or value_matches:
                     FutureMixin.resolve_future(sub, self)
                     futures.add(sub)
-            else:
+            elif isinstance(sub, EventMixin):
                 # the EventMixin handles dispatching the object, based on type
                 sub.queue.put(self)
+            elif callable(sub):
+                # call simple event handlers
+                if type_matches or value_matches:
+                    sub(self)
+            else:
+                raise RuntimeError(f"Unknown event handler: {sub}")
         # remove all used futures
         cls = type(self)
         while cls.__base__:
