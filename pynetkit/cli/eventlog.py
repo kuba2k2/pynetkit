@@ -36,6 +36,12 @@ def event_log_handler(e: BaseEvent):
                 f")§r"
             )
 
+        case "ProxyEvent":
+            from pynetkit.modules.proxy import ProxyEvent
+
+            e: ProxyEvent
+            mce(f"§2Proxy§f: {e.address} - §5{e.source}§f -> §d{e.target}§r")
+
         case "WifiConnectedEvent":
             from pynetkit.modules.wifi import WifiConnectedEvent
 

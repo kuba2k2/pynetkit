@@ -15,6 +15,7 @@ from typing import Callable
 
 from pynetkit.modules.base import ModuleBase
 
+from .events import ProxyEvent
 from .structs import TlsExtension, TlsHandshake, TlsHandshakeHello, TlsRecord
 from .types import ProxyProtocol, ProxySource, ProxyTarget, SocketIO
 
@@ -270,7 +271,12 @@ class ProxyHandler(BaseRequestHandler):
                 else ""
             )
         )
-        self.proxy.info(f"Proxy {source.protocol.name}: {proxy_path}")
+        self.proxy.debug(f"Proxy {source.protocol.name}: {proxy_path}")
+        ProxyEvent(
+            address=IPv4Address(self.client_address[0]),
+            source=source,
+            target=target,
+        ).broadcast()
 
         if (source.host, source.port) == (target.host, target.port) and target.host in [
             "localhost",
