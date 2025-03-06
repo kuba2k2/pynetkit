@@ -75,13 +75,17 @@ class DhcpModule(ModuleBase):
             self.warning(f"Unhandled message type: {message_type}")
             return
 
-        if self.interface is None:
-            self.error(f"Cannot serve DHCP request - no interface config set")
-            return
-
         host_name = packet[DhcpOptionType.HOST_NAME]
         vendor_cid = packet[DhcpOptionType.VENDOR_CLASS_IDENTIFIER]
         param_list = packet[DhcpOptionType.PARAMETER_REQUEST_LIST] or []
+
+        if self.interface is None:
+            self.error(
+                f"Cannot serve DHCP request from {packet.client_mac_address} "
+                f"({host_name}) - no interface config set"
+            )
+            return
+
         self.verbose(
             f"Got BOOT_REQUEST({message_type.name}) "
             f"from {packet.client_mac_address} "

@@ -131,6 +131,9 @@ def listen(dhcp: DhcpModule, address: IPv4Address, port: int | None):
     if port is not None:
         dhcp.port = port
     mce(f"§fListen address set to: §d{dhcp.address}:{dhcp.port}§r")
+    if dhcp.interface is None and int(address) != 0:
+        dhcp.interface = IPv4Interface(f"{dhcp.address}/24")
+        mce(f"§fServer interface is now set to: §d{dhcp.interface}§r")
 
 
 @cloup.command(help="REQUIRED: Set server interface configuration.")
