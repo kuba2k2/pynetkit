@@ -69,18 +69,21 @@ class WifiWindows(WifiCommon):
     dpapi: Dpapi | None = None
     ap_clients: set[MAC] = None
     access_point: WifiNetwork | None = None
+    use_dpapi: bool = False
 
     async def start(self) -> None:
         await super().start()
         self._register()
-        if self.dpapi is None:
-            self.dpapi = Dpapi()
-            self.dpapi.load_credentials()
         self.ap_clients = set()
 
     async def stop(self) -> None:
         self._unregister()
         await super().stop()
+
+    def _make_dpapi(self):
+        if self.dpapi is None or self.dpapi.key_cache is None:
+            self.dpapi = Dpapi()
+            self.dpapi.load_credentials()
 
     def _register(self):
         try:
@@ -239,9 +242,13 @@ class WifiWindows(WifiCommon):
             settings = wlanhosted.read_settings()
         except FileNotFoundError:
             settings = None
-        try:
-            security = wlanhosted.read_security(self.dpapi)
-        except FileNotFoundError:
+        if self.use_dpapi:
+            try:
+                self._make_dpapi()
+                security = wlanhosted.read_security(self.dpapi)
+            except FileNotFoundError:
+                security = None
+        else:
             security = None
         return settings, security
 
@@ -254,46 +261,65 @@ class WifiWindows(WifiCommon):
         adapter.ensure_wifi_ap()
         config_changed = False
 
+        self.use_dpapi = not network.password
+
         self.info("Configuring Hosted Network...")
-        old_settings, old_security = self._read_hosted_network()
-        if old_settings and (not old_settings.allowed or old_settings.not_configured):
-            old_settings = None
+        if self.use_dpapi:
+            old_settings, old_security = self._read_hosted_network()
+            if old_settings and (
+                not old_settings.allowed or old_settings.not_configured
+            ):
+                old_settings = None
 
-        system_key = (
-            old_security
-            and old_security.system_key
-            or wlanhosted.make_security_system_key()
-        )
-        new_settings = HostedNetworkSettings(
-            ssid=network.ssid.encode(),
-        )
-        new_security = HostedNetworkSecurity(
-            system_key=system_key,
-            user_key=network.password,
-        )
+            system_key = (
+                old_security
+                and old_security.system_key
+                or wlanhosted.make_security_system_key()
+            )
+            new_settings = HostedNetworkSettings(
+                ssid=network.ssid.encode(),
+            )
+            new_security = HostedNetworkSecurity(
+                system_key=system_key,
+                user_key=network.password,
+            )
 
-        if old_settings is None or old_settings.ssid != new_settings.ssid:
-            self.debug(f"Settings changed: {old_settings} vs {new_settings}")
-            config_changed = True
-        if old_security is None or old_security.user_key != new_security.user_key:
-            self.debug(f"Security changed: {old_security} vs {new_security}")
-            config_changed = True
+            if old_settings is None or old_settings.ssid != new_settings.ssid:
+                self.debug(f"Settings changed: {old_settings} vs {new_settings}")
+                config_changed = True
+            if old_security is None or old_security.user_key != new_security.user_key:
+                self.debug(f"Security changed: {old_security} vs {new_security}")
+                config_changed = True
 
-        if config_changed:
+            if config_changed:
+                await self.stop_access_point(adapter)
+                self._unregister(stop_wlansvc=True)
+                await asyncio.sleep(2)
+
+                self.debug("Writing Hosted Network settings")
+                wlanhosted.write_settings(new_settings)
+
+                self.debug("Writing Hosted Network security settings")
+                self._make_dpapi()
+                wlanhosted.write_security(self.dpapi, new_security)
+
+                self._register()
+                await WifiRawEvent(
+                    code="wlan_notification_acm_interface_arrival",
+                    data=None,
+                )
+        else:
+            # command line-based implementation
             await self.stop_access_point(adapter)
-            self._unregister(stop_wlansvc=True)
             await asyncio.sleep(2)
-
-            self.debug("Writing Hosted Network settings")
-            wlanhosted.write_settings(new_settings)
-
-            self.debug("Writing Hosted Network security settings")
-            wlanhosted.write_security(self.dpapi, new_security)
-
-            self._register()
-            await WifiRawEvent(
-                code="wlan_notification_acm_interface_arrival",
-                data=None,
+            self.command(
+                "netsh",
+                "wlan",
+                "set",
+                "hostednetwork",
+                "mode=allow",
+                f"ssid={network.ssid}",
+                f"key={(network.password or b'').decode('utf-8')}",
             )
 
         self.access_point = network
@@ -336,6 +362,11 @@ class WifiWindows(WifiCommon):
                 self.access_point = WifiNetwork(
                     ssid=settings.ssid.decode(),
                     password=security.user_key,
+                )
+            elif settings:
+                self.access_point = WifiNetwork(
+                    ssid=settings.ssid.decode(),
+                    password=b"(unknown)",
                 )
         return self.access_point
 

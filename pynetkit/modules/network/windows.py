@@ -17,12 +17,13 @@ class NetworkWindows(NetworkCommon):
         "ISATAP",
         "Loopback",
         "Wintun",
-        "Microsoft 6to4 Adapter",
+        "Microsoft 6to4",
     ]
     IFACE_VIRTUAL_WORDS = [
         "VMware",
         "VirtualBox",
         "Bluetooth",
+        "VPN",
     ]
 
     def _get_index(self, adapter: NetworkAdapter) -> int:
