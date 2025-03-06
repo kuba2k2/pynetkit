@@ -14,6 +14,8 @@ import click
 
 from pynetkit.util.logging import VERBOSE, LoggingHandler
 
+from .eventlog import event_log_subscribe
+
 VERBOSITY_LEVEL = {
     0: INFO,
     1: DEBUG,
@@ -76,6 +78,8 @@ def cli_entrypoint(
     logger.timed = timed
     logger.raw = raw_log
     logger.full_traceback = traceback
+
+    event_log_subscribe()
 
     if pycharm_debug:
         import pydevd_pycharm
