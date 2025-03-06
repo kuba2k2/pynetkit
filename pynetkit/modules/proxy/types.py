@@ -48,7 +48,10 @@ class SocketIO(IO[bytes], ABC):
     def read_until(self, sep: bytes) -> bytes:
         data = b""
         while True:
-            data += self.s.recv(1)
+            recv = self.s.recv(1)
+            if len(recv) == 0:
+                raise ConnectionResetError("Socket closed")
+            data += recv
             self.pos += len(data)
             if sep not in data:
                 continue

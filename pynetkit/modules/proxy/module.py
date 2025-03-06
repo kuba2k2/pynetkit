@@ -4,6 +4,7 @@ import asyncio
 import re
 import select
 import socketserver
+import threading
 from asyncio import Future
 from functools import partial
 from ipaddress import IPv4Address
@@ -69,19 +70,17 @@ class ProxyModule(ModuleBase):
             )
             thread.start()
             futures.append(future)
-            self._threads.append(thread)
 
         await asyncio.gather(*futures)
 
     # noinspection DuplicatedCode
     async def stop(self) -> None:
         self.should_run = False
-        for server in self._servers:
+        for server in list(self._servers):
             server.shutdown()
-        for thread in self._threads:
+            server.server_close()
+        for thread in list(self._threads):
             thread.join()
-        self._servers.clear()
-        self._threads.clear()
 
     @property
     def is_started(self) -> bool:
@@ -104,9 +103,16 @@ class ProxyModule(ModuleBase):
                 protocol=protocol,
             ),
         )
+        self._threads.append(threading.current_thread())
         self._servers.append(server)
-        server.daemon_threads = True
-        server.serve_forever()
+        try:
+            server.daemon_threads = True
+            server.serve_forever()
+        except Exception as e:
+            raise e
+        finally:
+            self._threads.remove(threading.current_thread())
+            self._servers.remove(server)
 
     def add_proxy(self, source: ProxySource, target: ProxyTarget) -> None:
         self.proxy_db.append((source, target))
@@ -191,6 +197,8 @@ class ProxyHandler(BaseRequestHandler):
         self.protocol = protocol
         try:
             super().__init__(request, client_address, server)
+        except ConnectionResetError:
+            self.proxy.debug(f"Connection closed - {self.request.getsockname()}")
         except Exception as e:
             # handle request exceptions here
             self.proxy.exception(f"Proxy handler raised exception", exc_info=e)
@@ -204,6 +212,8 @@ class ProxyHandler(BaseRequestHandler):
             protocol=self.protocol,
             path="",
         )
+
+        self.proxy.debug(f"Connection opened - {client.getsockname()}")
 
         # detect the protocol if auto matching is enabled
         if source.protocol == ProxyProtocol.ANY:
@@ -321,36 +331,38 @@ class ProxyHandler(BaseRequestHandler):
 
         if initial_data:
             server.sendall(initial_data)
+
         running = True
         while running:
-            rsocks, _, xsocks = select.select([client, server], [], [], 2.0)
-            for rsock in rsocks:
-                # rname = "Client" if rsock == client else "Server"
-                wsock = client if rsock == server else server
-                # wname = "Client" if wsock == client else "Server"
-                while True:
-                    try:
-                        data = rsock.recv(4096)
-                    except ConnectionError:
-                        # self.proxy.exception("Connection error", exc_info=e)
-                        running = False
-                        break
-                    if not data:
-                        break
-                    # self.proxy.info(f"{rname} -> {wname}: {len(data)} bytes")
-                    # for line in hexdump(data, "generator"):
-                    #     self.proxy.info(line)
-                    try:
-                        wsock.sendall(data)
-                    except ConnectionError:
-                        # self.proxy.exception("Connection error", exc_info=e)
-                        running = False
-                        break
-                    if len(data) < 4096:
-                        break
+            rsocks, _, xsocks = select.select(
+                [client, server],
+                [client, server],
+                [client, server],
+                2.0,
+            )
             if xsocks:
                 self.proxy.warning(f"Socket exception, closing")
-                running = False
+                break
+            for rsock in rsocks:
+                wsock = client if rsock == server else server
+                try:
+                    data = rsock.recv(4096)
+                except ConnectionError as e:
+                    self.proxy.warning(f"Proxy read error: {e}")
+                    running = False
+                    break
+                if len(data) == 0:
+                    # select() returned a read socket, but recv() returned 0
+                    # socket is closed
+                    running = False
+                    break
+                try:
+                    wsock.sendall(data)
+                except ConnectionError as e:
+                    self.proxy.warning(f"Proxy write error: {e}")
+                    running = False
+                    break
+
         self.proxy.debug(f"Connection closed - {proxy_path}")
         client.close()
         server.close()
