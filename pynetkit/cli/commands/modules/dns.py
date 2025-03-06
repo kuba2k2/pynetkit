@@ -113,6 +113,9 @@ async def start(
     address: IPv4Address | None,
     port: int | None,
 ):
+    if dns.is_started:
+        mce(f"§fDNS module is already running§r")
+        return
     if address is not None:
         dns.address = address
     if port is not None:

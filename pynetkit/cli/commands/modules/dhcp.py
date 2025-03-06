@@ -101,6 +101,9 @@ async def start(
     port: int | None,
     iface: IPv4Interface | None,
 ):
+    if dhcp.is_started:
+        mce(f"§fDHCP module is already running§r")
+        return
     if address is not None:
         dhcp.address = address
     if port is not None:

@@ -106,6 +106,9 @@ async def destroy(proxy: ProxyModule):
 @index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
 @async_command
 async def start(proxy: ProxyModule):
+    if proxy.is_started:
+        mce(f"§fProxy module is already running§r")
+        return
     await proxy.start()
     mce(f"§fProxy module started§r")
 
