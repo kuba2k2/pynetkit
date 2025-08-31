@@ -1,11 +1,13 @@
 #  Copyright (c) Kuba Szczodrzyński 2025-3-6.
 
+from logging import exception
+
 from pynetkit.modules.base import BaseEvent
 
 from .util.mce import mce
 
 
-def event_log_handler(e: BaseEvent):
+def event_log_print(e: BaseEvent):
     # compare class names to avoid importing all modules by default
     match type(e).__name__:
         case "DhcpLeaseEvent":
@@ -77,6 +79,13 @@ def event_log_handler(e: BaseEvent):
 
             e: WifiAPClientDisconnectedEvent
             mce(f"§2Wi-Fi§f: client disconnected from AP - §d{e.client}§r")
+
+
+def event_log_handler(e: BaseEvent):
+    try:
+        event_log_print(e)
+    except Exception as e:
+        exception("Logging handler raised an exception", exc_info=e)
 
 
 def event_log_subscribe():
