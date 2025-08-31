@@ -69,7 +69,7 @@ pressing `?` (or typing `help`) shows a detailed help screen for the particular 
 Each of the **modules** (listed above) has its own CLI. When configured using commands, modules can preserve their
 settings in **config files**.
 
-There is a dedicated **`config` command**, that allows you to save the entire configuration of pynetkit to a YAML file.
+There is a dedicated `config` command, that allows you to save the entire configuration of pynetkit to a YAML file.
 Everything that you configured for a particular module will be saved, **including its started/stopped state**.
 
 The config file system allows you to easily **save working settings and easily restore them later**.
@@ -215,7 +215,7 @@ All options except `listen` can be configured while the server is running.
 
 #### `proxy`
 
-This module provides a TCP/TLS/HTTP server, which can proxy connections based on the requested hostname. 
+This module provides a TCP/TLS/HTTP server, which can proxy connections based on the requested hostname.
 
 All options except `listen` and `port` can be configured while the server is running.
 
@@ -229,6 +229,7 @@ All options except `listen` and `port` can be configured while the server is run
 The proxy ports must be configured first - **the proxy will only listen on these ports**.
 
 Then, a **route** must be created - routes are basically instructions for where to proxy the traffic.
+
 - Source format is: `[scheme://]host[:port][/path]`, where `scheme`, `port` and `path` are optional (will match any).
 - Target format is: `host[:port][/path]`, where `port` and `path` are optional (will match any).
 - The `host` and `path` parts in `source` can be a RegEx. Capture groups in `target` can be referenced using `$1`, `$2`, etc.
@@ -344,7 +345,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 ```
 
 ## License
@@ -371,5 +371,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
 ```
