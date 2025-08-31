@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pynetkit"
-version = "1.2.0"
+version = "1.3.0"
 description = "Reverse engineering utilities for several popular network protocols"
 authors = ["Kuba Szczodrzyński <kuba@szczodrzynski.pl>"]
 license = "MIT"
