@@ -11,3 +11,4 @@ from pynetkit.modules.base import BaseEvent
 class NtpSyncEvent(BaseEvent):
     address: IPv4Address
     origin_timestamp: datetime | None
+    server_timestamp: datetime | None

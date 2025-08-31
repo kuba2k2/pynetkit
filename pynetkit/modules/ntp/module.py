@@ -42,7 +42,10 @@ class NtpModule(ModuleBase):
         self._sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self._sock.bind((str(self.address), self.port))
         while self.should_run and self._sock is not None:
-            self._process_request()
+            try:
+                self._process_request()
+            except Exception as e:
+                self.exception("NTP handler raised exception", exc_info=e)
 
     async def stop(self) -> None:
         self.should_run = False
@@ -66,13 +69,21 @@ class NtpModule(ModuleBase):
             self.warning(f"Invalid NTP packet: {e}")
             return
 
+        self.debug(f"NTP request from {address}")
+
         offset = timedelta()
         if None in self.offset:
             offset = self.offset[None]
         if address in self.offset:
             offset = self.offset[address]
-
         now = datetime.now() + offset
+
+        NtpSyncEvent(
+            address=address,
+            origin_timestamp=packet.xmt,
+            server_timestamp=now,
+        ).broadcast()
+
         packet = NtpPacket(
             flags=NtpPacket.Flags(li=0, vn=3, mode=4),
             stratum=1,
@@ -80,7 +91,7 @@ class NtpModule(ModuleBase):
             precision=0.0625,
             refid=b"NIST",
             reftime=now,
-            org=packet.xmt,
+            org=None,  # will be copied at byte-level; epoch-zero translation causes issues
             rec=now,
             xmt=now,
         )
@@ -90,9 +101,4 @@ class NtpModule(ModuleBase):
         # some clients compare these two, but conversion to datetime() loses precision
         response = response[0:24] + request[40:48] + response[32:48]
 
-        self.debug(f"NTP request from {address}")
         self._sock.sendto(response, addr)
-        NtpSyncEvent(
-            address=address,
-            origin_timestamp=packet.org,
-        ).broadcast()
