@@ -250,7 +250,7 @@ class ProxyHandler(BaseRequestHandler):
                 initial_data = io.read_until(b"\r\n\r\n")
                 headers = [line.partition(b":") for line in initial_data.splitlines()]
                 headers = {k.strip().lower(): v.strip().lower() for k, _, v in headers}
-                source.host = headers.get(b"host", b"").decode()
+                source.host = headers.get(b"host", b"").decode().partition(":")[0]
                 source.path = (
                     initial_data.partition(b" ")[2]
                     .partition(b" ")[0]
