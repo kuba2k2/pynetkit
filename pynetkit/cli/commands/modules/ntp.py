@@ -45,6 +45,11 @@ def cli(ctx: Context, ntp: NtpModule | None):
     servers = [ntp] if ntp else NTP
 
     for i, ntp in enumerate(servers):
+        if ntp.offset:
+            offsets = [("Time offset", "")]
+            offsets += [("", f"{ip} - {delta}") for ip, delta in ntp.offset.items()]
+        else:
+            offsets = [("Time offset", "(empty)")]
         config_table(
             f"NTP server #{NTP.index(ntp) + 1}",
             (
@@ -52,6 +57,7 @@ def cli(ctx: Context, ntp: NtpModule | None):
                 f"§aStarted§r ({ntp.thread.name})" if ntp.is_started else "§8Stopped",
             ),
             ("Listen address", f"{ntp.address}:{ntp.port}"),
+            *offsets,
             no_top=i > 0,
             color=True,
         )
