@@ -29,10 +29,22 @@ def event_log_handler(e: BaseEvent):
             from pynetkit.modules.ntp import NtpSyncEvent
 
             e: NtpSyncEvent
+            origin_timestamp = (
+                e.origin_timestamp
+                and e.origin_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                or "none"
+            )
+            server_timestamp = (
+                e.server_timestamp
+                and e.server_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                or "none"
+            )
             mce(
                 f"§2NTP§f: request from §d{e.address}§f "
                 f"(origin timestamp: "
-                f"§d{e.origin_timestamp.strftime('%Y-%m-%d %H:%M:%S')}§f"
+                f"§d{origin_timestamp}§f"
+                f", server timestamp: "
+                f"§d{server_timestamp}§f"
                 f")§r"
             )
 
