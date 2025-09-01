@@ -10,7 +10,7 @@ from pynetkit.modules.base import ModuleBase
 from pynetkit.util.misc import wake_udp_socket
 
 from .enums import DhcpMessageType, DhcpOptionType, DhcpPacketType
-from .events import DhcpLeaseEvent
+from .events import DhcpLeaseEvent, DhcpReleaseEvent
 from .structs import DhcpPacket
 
 
@@ -75,6 +75,7 @@ class DhcpModule(ModuleBase):
             DhcpMessageType.DISCOVER,
             DhcpMessageType.REQUEST,
             DhcpMessageType.INFORM,
+            DhcpMessageType.RELEASE,
         ]:
             self.warning(f"Unhandled message type: {message_type}")
             return
@@ -82,6 +83,17 @@ class DhcpModule(ModuleBase):
         host_name = packet[DhcpOptionType.HOST_NAME]
         vendor_cid = packet[DhcpOptionType.VENDOR_CLASS_IDENTIFIER]
         param_list = packet[DhcpOptionType.PARAMETER_REQUEST_LIST] or []
+
+        if message_type == DhcpMessageType.RELEASE:
+            self.debug(
+                f"Releasing address of {packet.client_mac_address} ({host_name})"
+            )
+            DhcpReleaseEvent(
+                client=packet.client_mac_address,
+                host_name=host_name,
+                vendor_cid=vendor_cid,
+            ).broadcast()
+            return
 
         if self.interface is None:
             self.error(

@@ -21,6 +21,17 @@ def event_log_print(e: BaseEvent):
                 + "§r"
             )
 
+        case "DhcpReleaseEvent":
+            from pynetkit.modules.dhcp import DhcpReleaseEvent
+
+            e: DhcpReleaseEvent
+            mce(
+                f"§2DHCP§f: release of address by §d{e.client}§f"
+                + (e.host_name and f" (§d{e.host_name}§f)" or "")
+                + (e.vendor_cid and f" (vendor: §d{e.vendor_cid}§f)" or "")
+                + "§r"
+            )
+
         case "DnsQueryEvent":
             from pynetkit.modules.dns import DnsQueryEvent
 

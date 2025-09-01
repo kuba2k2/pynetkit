@@ -14,3 +14,10 @@ class DhcpLeaseEvent(BaseEvent):
     address: IPv4Address
     host_name: str | None
     vendor_cid: str | None
+
+
+@dataclass
+class DhcpReleaseEvent(BaseEvent):
+    client: MAC
+    host_name: str | None
+    vendor_cid: str | None
