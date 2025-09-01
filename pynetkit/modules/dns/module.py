@@ -53,7 +53,11 @@ class DnsModule(ModuleBase, BaseResolver):
             self._dns.server.server_close()
         self._dns = None
 
-    def resolve(self, request: DNSRecord, _: DNSHandler | None) -> DNSRecord:
+    def resolve(self, request: DNSRecord, handler: DNSHandler | None) -> DNSRecord:
+        address: IPv4Address | None = None
+        if handler and handler.client_address:
+            address = IPv4Address(handler.client_address[0])
+
         reply: DNSRecord = request.reply()
         has_response = False
         has_nxdomain = False
@@ -78,11 +82,11 @@ class DnsModule(ModuleBase, BaseResolver):
                         break
             else:
                 self.warning(f"No DNS zone for {qtype} {qname}")
-                DnsQueryEvent(qname=qname, qtype=qtype, rdata=[]).broadcast()
+                DnsQueryEvent(address, qname, qtype, rdata=[]).broadcast()
                 continue
 
             self.debug(f"Answering DNS request {qtype} {qname}")
-            DnsQueryEvent(qname=qname, qtype=qtype, rdata=rdata).broadcast()
+            DnsQueryEvent(address, qname, qtype, rdata=rdata).broadcast()
 
             # send a reply
             for rr in rdata:
