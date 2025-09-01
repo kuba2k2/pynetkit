@@ -154,10 +154,11 @@ def listen(dns: DnsModule, address: IPv4Address, port: int | None):
     "answer",
     required=True,
     nargs=-1,
-    help='Answer(s) for the query (i.e. IP address). Empty "" means NXDOMAIN.',
+    help='Answer(s) for the query (i.e. IP address). Can be empty ("") to return no answers. '
+    'Use special value "-" for NXDOMAIN error code.',
 )
 def set_(dns: DnsModule, name: str, type: str, answer: tuple[str]):
-    answer = list(answer)
+    answer = ["NXDOMAIN" if s == "-" else s for s in answer]
     if answer and answer[0] == "":
         answer = []
     for i, record in enumerate(dns.dns_db):

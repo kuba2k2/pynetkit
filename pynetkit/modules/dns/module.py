@@ -55,6 +55,8 @@ class DnsModule(ModuleBase, BaseResolver):
 
     def resolve(self, request: DNSRecord, _: DNSHandler | None) -> DNSRecord:
         reply: DNSRecord = request.reply()
+        has_response = False
+        has_nxdomain = False
         for q in request.questions:
             q: DNSQuestion
 
@@ -66,21 +68,27 @@ class DnsModule(ModuleBase, BaseResolver):
             for handler in self.dns_db:
                 if callable(handler):
                     rdata = handler(qname, qtype)
-                    if rdata:
+                    if rdata is not None:
+                        has_response = True
                         break
                 else:
                     rname, rtype, rdata = handler
                     if matches(rname, qname) and matches(rtype, qtype):
+                        has_response = True
                         break
             else:
                 self.warning(f"No DNS zone for {qtype} {qname}")
                 DnsQueryEvent(qname=qname, qtype=qtype, rdata=[]).broadcast()
                 continue
+
             self.debug(f"Answering DNS request {qtype} {qname}")
             DnsQueryEvent(qname=qname, qtype=qtype, rdata=rdata).broadcast()
 
             # send a reply
             for rr in rdata:
+                if rr == "NXDOMAIN":
+                    has_nxdomain = True
+                    continue
                 if not isinstance(rr, RR):
                     rr = RR(
                         rname=q.qname,
@@ -88,7 +96,7 @@ class DnsModule(ModuleBase, BaseResolver):
                         rdata=RDMAP[qtype](rr),
                     )
                 reply.add_answer(rr)
-        if not reply.rr:
+        if not has_response or has_nxdomain:
             reply.header.rcode = RCODE.NXDOMAIN
         return reply
 
@@ -117,10 +125,10 @@ class DnsModule(ModuleBase, BaseResolver):
         rname: str = ".*",
         rtype: str = ".*",
     ) -> Callable:
-        def handler(qname: str, qtype: str) -> list[RR]:
+        def handler(qname: str, qtype: str) -> list[RR] | None:
             if matches(rname, qname) and matches(rtype, qtype):
                 return self.resolve_upstream(upstream, qname, qtype)
-            return []
+            return None
 
         self.dns_db.append(handler)
         return handler
