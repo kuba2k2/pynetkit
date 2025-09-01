@@ -222,6 +222,10 @@ class ProxyHandler(BaseRequestHandler):
 
         self.proxy.debug(f"Connection opened - {client.getsockname()}")
 
+        http_method: str = ""
+        http_headers: list[tuple[bytes, bytes]] = []
+        http_headers_dict: dict[bytes, bytes] = {}
+
         # detect the protocol if auto matching is enabled
         if source.protocol == ProxyProtocol.ANY:
             peek = io.peek(6)
@@ -238,6 +242,7 @@ class ProxyHandler(BaseRequestHandler):
         match source.protocol:
             case ProxyProtocol.RAW:
                 initial_data = io.buf
+
             case ProxyProtocol.TLS:
                 rec = TlsRecord.unpack(io)
                 initial_data = rec.pack()
@@ -252,16 +257,32 @@ class ProxyHandler(BaseRequestHandler):
                         server_name.names[0].value if server_name.names else ""
                     )
                     break
+
             case ProxyProtocol.HTTP:
                 initial_data = io.read_until(b"\r\n\r\n")
-                headers = [line.partition(b":") for line in initial_data.splitlines()]
-                headers = {k.strip().lower(): v.strip().lower() for k, _, v in headers}
-                source.host = headers.get(b"host", b"").decode().partition(":")[0]
+
+                http_method, _, _ = initial_data.partition(b" ")
+                http_headers = [
+                    (k, v)
+                    for k, _, v in [
+                        line.partition(b": ") for line in initial_data.split(b"\r\n")
+                    ]
+                ]
+                http_headers_dict = {
+                    k.strip().lower(): v.strip().lower() for k, v in http_headers
+                }
+
+                # get host name and strip port number
+                source.host = (
+                    http_headers_dict.get(b"host", b"").decode().partition(":")[0]
+                )
+                # get request path
                 source.path = (
                     initial_data.partition(b" ")[2]
                     .partition(b" ")[0]
                     .decode("utf-8", errors="ignore")
                 )
+
             case _:
                 raise RuntimeError("Unknown protocol")
 
@@ -300,19 +321,44 @@ class ProxyHandler(BaseRequestHandler):
             client.close()
             return
 
-        # patch the request line if target path is specified
-        if (
-            source.protocol == ProxyProtocol.HTTP
-            and source.path != target.path
-            and target.path
-        ):
-            method, delimiter, request = initial_data.partition(b" ")
-            if delimiter:
-                source_path, _, request = request.partition(b" ")
-                initial_data = method + b" " + target.path.encode() + b" " + request
-            else:
-                self.proxy.warning(
-                    f"HTTP request line invalid - {str(initial_data)[0:50]} [...]"
+        if source.protocol == ProxyProtocol.HTTP:
+
+            def replace_http_header(name: bytes, new_value: bytes) -> bool:
+                nonlocal initial_data
+                for key, value in http_headers:
+                    if key.strip().lower() != name:
+                        continue
+                    old_header = key + b": " + value
+                    new_header = key + b": " + new_value
+                    initial_data = initial_data.replace(old_header, new_header, 1)
+                    return True
+                return False
+
+            # patch the request line if target path is specified
+            if source.path != target.path and target.path:
+                method, delimiter, request = initial_data.partition(b" ")
+                if delimiter:
+                    source_path, _, request = request.partition(b" ")
+                    initial_data = method + b" " + target.path.encode() + b" " + request
+                else:
+                    self.proxy.warning(
+                        f"HTTP request line invalid - {str(initial_data)[0:50]} [...]"
+                    )
+
+            # patch the host header if target host is specified
+            if (source.host != target.host or source.port != target.port) and (
+                target.host or target.port
+            ):
+                new_host = (
+                    target.host if target.port == 80 else f"{target.host}:{target.port}"
+                )
+                replace_http_header(b"host", new_host.encode())
+
+            # replace/add a Connection: close header to route all requests via proxy
+            if not replace_http_header(b"connection", b"close"):
+                # no Connection header, add one
+                initial_data = initial_data.replace(
+                    b"\r\n", b"\r\nConnection: close\r\n"
                 )
 
         server = socket(AF_INET, SOCK_STREAM)
