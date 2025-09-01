@@ -8,7 +8,7 @@ import threading
 from asyncio import Future
 from functools import partial
 from ipaddress import IPv4Address
-from socket import AF_INET, SOCK_STREAM, socket
+from socket import AF_INET, SOCK_STREAM, gethostbyname_ex, gethostname, socket
 from socketserver import BaseRequestHandler, ThreadingTCPServer
 from threading import Thread
 from typing import Callable
@@ -182,6 +182,12 @@ class ProxyModule(ModuleBase):
 
         return target
 
+    def get_local_addresses(self) -> list[str]:
+        addresses = gethostbyname_ex(gethostname())[2]
+        addresses += ["127.0.0.1", "localhost", "::1"]
+        addresses += [str(self.address)]
+        return addresses
+
 
 class ProxyHandler(BaseRequestHandler):
     def __init__(
@@ -278,12 +284,18 @@ class ProxyHandler(BaseRequestHandler):
             target=target,
         ).broadcast()
 
-        if (source.host, source.port) == (target.host, target.port) and target.host in [
-            "localhost",
-            "127.0.0.1",
-        ]:
+        # check if:
+        # - source host/port is the same as target host/port (no rewrite was performed)
+        # - target port is a listening port of this proxy
+        # - target host is a local address that (likely) points to this proxy
+        # in this case, the proxy would just request itself recursively - stop it before it's too late
+        if (
+            (source.host, source.port) == (target.host, target.port)
+            and target.port in self.proxy.ports
+            and target.host in self.proxy.get_local_addresses()
+        ):
             self.proxy.warning(
-                "Resolved target address same as source address! Bailing out..."
+                "Target address and port resolved to self! Bailing out..."
             )
             client.close()
             return
