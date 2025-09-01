@@ -15,7 +15,7 @@ def event_log_print(e: BaseEvent):
 
             e: DhcpLeaseEvent
             mce(
-                f"§2DHCP§f: lease of §d{e.address}§f offered to §d{e.client}§f"
+                f"§2DHCP§f: §1{e.client}§f - offered lease of §d{e.address}§f"
                 + (e.host_name and f" (§d{e.host_name}§f)" or "")
                 + (e.vendor_cid and f" (vendor: §d{e.vendor_cid}§f)" or "")
                 + "§r"
@@ -26,7 +26,7 @@ def event_log_print(e: BaseEvent):
 
             e: DhcpReleaseEvent
             mce(
-                f"§2DHCP§f: release of address by §d{e.client}§f"
+                f"§2DHCP§f: §1{e.client}§f - address released"
                 + (e.host_name and f" (§d{e.host_name}§f)" or "")
                 + (e.vendor_cid and f" (vendor: §d{e.vendor_cid}§f)" or "")
                 + "§r"
@@ -36,7 +36,12 @@ def event_log_print(e: BaseEvent):
             from pynetkit.modules.dns import DnsQueryEvent
 
             e: DnsQueryEvent
-            mce(f"§2DNS§f: query - §d{e.qname} {e.qtype}§r")
+            mce(
+                f"§2DNS§f: §1{e.address or '(unknown address)'}§f - "
+                f"§5{e.qname} {e.qtype}§f -> "
+                + (", ".join(f"§d{rr}§f" for rr in e.rdata) or "(no response)")
+                + "§r"
+            )
 
         case "NtpSyncEvent":
             from pynetkit.modules.ntp import NtpSyncEvent
@@ -53,43 +58,40 @@ def event_log_print(e: BaseEvent):
                 or "none"
             )
             mce(
-                f"§2NTP§f: request from §d{e.address}§f "
-                f"(origin timestamp: "
-                f"§d{origin_timestamp}§f"
-                f", server timestamp: "
-                f"§d{server_timestamp}§f"
-                f")§r"
+                f"§2NTP§f: §1{e.address}§f - "
+                f"origin timestamp: §d{origin_timestamp}§f, "
+                f"server timestamp: §d{server_timestamp}§r"
             )
 
         case "ProxyEvent":
             from pynetkit.modules.proxy import ProxyEvent
 
             e: ProxyEvent
-            mce(f"§2Proxy§f: {e.address} - §5{e.source}§f -> §d{e.target}§r")
+            mce(f"§2Proxy§f: §1{e.address}§f - §5{e.source}§f -> §d{e.target}§r")
 
         case "WifiConnectedEvent":
             from pynetkit.modules.wifi import WifiConnectedEvent
 
             e: WifiConnectedEvent
-            mce(f"§2Wi-Fi§f: connected to §d{e.ssid}§r")
+            mce(f"§2Wi-Fi§f: §1{e.ssid}§f - connected to network§r")
 
         case "WifiDisconnectedEvent":
             from pynetkit.modules.wifi import WifiDisconnectedEvent
 
             e: WifiDisconnectedEvent
-            mce(f"§2Wi-Fi§f: disconnected from §d{e.ssid}§r")
+            mce(f"§2Wi-Fi§f: §1{e.ssid}§f - disconnected from network§r")
 
         case "WifiAPClientConnectedEvent":
             from pynetkit.modules.wifi import WifiAPClientConnectedEvent
 
             e: WifiAPClientConnectedEvent
-            mce(f"§2Wi-Fi§f: client connected to AP - §d{e.client}§r")
+            mce(f"§2Wi-Fi§f: §1{e.client}§f - client connected to AP§r")
 
         case "WifiAPClientDisconnectedEvent":
             from pynetkit.modules.wifi import WifiAPClientDisconnectedEvent
 
             e: WifiAPClientDisconnectedEvent
-            mce(f"§2Wi-Fi§f: client disconnected from AP - §d{e.client}§r")
+            mce(f"§2Wi-Fi§f: §1{e.client}§f - client disconnected from AP§r")
 
 
 def event_log_handler(e: BaseEvent):
