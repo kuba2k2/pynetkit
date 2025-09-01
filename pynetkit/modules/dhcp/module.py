@@ -70,19 +70,23 @@ class DhcpModule(ModuleBase):
             return
         if packet.packet_type != DhcpPacketType.BOOT_REQUEST:
             return
+
         message_type: DhcpMessageType = packet[DhcpOptionType.MESSAGE_TYPE]
+        if message_type is None:
+            # return on bogus message types
+            return
         if message_type not in [
             DhcpMessageType.DISCOVER,
             DhcpMessageType.REQUEST,
             DhcpMessageType.INFORM,
             DhcpMessageType.RELEASE,
         ]:
-            self.warning(f"Unhandled message type: {message_type}")
+            self.warning(f"Unhandled message type: {message_type.name}")
             return
 
-        host_name = packet[DhcpOptionType.HOST_NAME]
-        vendor_cid = packet[DhcpOptionType.VENDOR_CLASS_IDENTIFIER]
-        param_list = packet[DhcpOptionType.PARAMETER_REQUEST_LIST] or []
+        host_name: str | None = packet[DhcpOptionType.HOST_NAME]
+        vendor_cid: str | None = packet[DhcpOptionType.VENDOR_CLASS_IDENTIFIER]
+        param_list: list[DhcpOptionType] = packet[DhcpOptionType.PARAMETER_REQUEST_LIST]
 
         if message_type == DhcpMessageType.RELEASE:
             self.debug(
@@ -138,10 +142,10 @@ class DhcpModule(ModuleBase):
         packet[DhcpOptionType.RENEW_TIME_VALUE] = timedelta(hours=12)
         packet[DhcpOptionType.REBINDING_TIME_VALUE] = timedelta(days=7)
 
-        for option in param_list:
+        for option in param_list or []:
             if option in packet:
                 continue
-            self.warning(f"Requested DHCP option {option} not populated")
+            self.warning(f"Requested DHCP option {option.name} not populated")
 
         self.debug(f"{action} {address} to {packet.client_mac_address} ({host_name})")
         self._sock.sendto(packet.pack(), ("255.255.255.255", 68))
