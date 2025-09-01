@@ -1,6 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
 from ipaddress import IPv4Interface
+from logging import exception
 from random import randint
 
 from win32wifi import Win32Wifi
@@ -40,16 +41,25 @@ class NetworkWindows(NetworkCommon):
         # store adapter GUID in adapter.obj
         for adapter in adapters:
             adapter.obj = adapter.ifadapter.name
-        # mark Wi-Fi Station adapters
-        for iface in Win32Wifi.getWirelessInterfaces():
+
+        try:
+            # mark Wi-Fi Station adapters
+            for iface in Win32Wifi.getWirelessInterfaces():
+                for adapter in adapters:
+                    if adapter.obj == iface.guid_string:
+                        adapter.type = NetworkAdapter.Type.WIRELESS_STA
+        except Exception as e:
+            exception("Failed to list Wi-Fi STA adapters", exc_info=e)
+
+        try:
+            # mark Wi-Fi Access Point adapters
+            status = wlanapi.WlanHostedNetworkQueryStatus()
             for adapter in adapters:
-                if adapter.obj == iface.guid_string:
-                    adapter.type = NetworkAdapter.Type.WIRELESS_STA
-        # mark Wi-Fi Access Point adapters
-        status = wlanapi.WlanHostedNetworkQueryStatus()
-        for adapter in adapters:
-            if adapter.obj == f"{{{status.device_guid}}}".upper():
-                adapter.type = NetworkAdapter.Type.WIRELESS_AP
+                if adapter.obj == f"{{{status.device_guid}}}".upper():
+                    adapter.type = NetworkAdapter.Type.WIRELESS_AP
+        except Exception as e:
+            exception("Failed to list Wi-Fi AP adapters", exc_info=e)
+
         return adapters
 
     @module_thread
