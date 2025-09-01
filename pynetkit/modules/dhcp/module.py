@@ -25,6 +25,7 @@ class DhcpModule(ModuleBase):
     dns: IPv4Address | None = None
     router: IPv4Address | None = None
     hostname: str | None = None
+    # runtime status
     hosts: dict[MAC, IPv4Address] | None = None
     hosts_names: dict[MAC, str] | None = None
     hosts_vendor_cid: dict[MAC, str] | None = None

@@ -1,5 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
+from collections import defaultdict
 from ipaddress import IPv4Address
 from typing import Callable
 
@@ -21,6 +22,8 @@ class DnsModule(ModuleBase, BaseResolver):
     dns_db: list[
         tuple[str, str, list[str | RR]] | Callable[[str, str], list[str | RR]]
     ] = None
+    # runtime status
+    queries: dict[IPv4Address, dict[tuple[str, str], int]] = None
     # server handle
     _dns: DNSServer | None = None
 
@@ -32,6 +35,7 @@ class DnsModule(ModuleBase, BaseResolver):
 
     async def run(self) -> None:
         self.info(f"Starting DNS server on {self.address}:{self.port}")
+        self.queries = {}
         self._dns = DNSServer(
             resolver=self,
             address=str(self.address),
@@ -87,6 +91,12 @@ class DnsModule(ModuleBase, BaseResolver):
 
             self.debug(f"Answering DNS request {qtype} {qname}")
             DnsQueryEvent(address, qname, qtype, rdata=rdata).broadcast()
+
+            if address:
+                # increment query count if client address is available
+                if address not in self.queries:
+                    self.queries[address] = defaultdict(int)
+                self.queries[address][qname, qtype] += 1
 
             # send a reply
             for rr in rdata:
