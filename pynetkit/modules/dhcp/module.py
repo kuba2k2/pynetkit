@@ -26,6 +26,8 @@ class DhcpModule(ModuleBase):
     router: IPv4Address | None = None
     hostname: str | None = None
     hosts: dict[MAC, IPv4Address] | None = None
+    hosts_names: dict[MAC, str] | None = None
+    hosts_vendor_cid: dict[MAC, str] | None = None
     # server handle
     _sock: socket | None = None
 
@@ -35,6 +37,8 @@ class DhcpModule(ModuleBase):
         self.port = 67
         self.hostname = "pynetkit"
         self.hosts = {}
+        self.hosts_names = {}
+        self.hosts_vendor_cid = {}
 
     async def run(self) -> None:
         self.info(f"Starting DHCP server on {self.address}:{self.port}")
@@ -94,6 +98,9 @@ class DhcpModule(ModuleBase):
 
         address = self._choose_ip_address(packet.client_mac_address)
         network = self.interface.network
+
+        self.hosts_names[packet.client_mac_address] = host_name
+        self.hosts_vendor_cid[packet.client_mac_address] = vendor_cid
 
         packet.packet_type = DhcpPacketType.BOOT_REPLY
         packet.your_ip_address = address

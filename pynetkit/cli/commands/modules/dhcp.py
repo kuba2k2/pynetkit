@@ -45,9 +45,18 @@ def cli(ctx: Context, dhcp: DhcpModule | None):
     for i, dhcp in enumerate(servers):
         if dhcp.hosts:
             leases = [("Active leases", "")]
-            leases += [("", f"{mac} - {ip}") for mac, ip in dhcp.hosts.items()]
+            for mac, ip in dhcp.hosts.items():
+                host_name = dhcp.hosts_names.get(mac)
+                vendor_cid = dhcp.hosts_vendor_cid.get(mac)
+                info = (
+                    f"{mac} - {ip}"
+                    + (host_name and f" (§d{host_name}§r)" or "")
+                    + (vendor_cid and f" (vendor: §d{vendor_cid}§r)" or "")
+                )
+                leases += [("", info)]
         else:
             leases = [("Active leases", "(empty)")]
+
         config_table(
             f"DHCP server #{DHCP.index(dhcp) + 1}",
             (
