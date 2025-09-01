@@ -59,12 +59,14 @@ def cli(ctx: Context, proxy: ProxyModule | None):
             no_top=i > 0,
             color=True,
         )
+
         table = ColorTable(
             [" ", "Source", "Target"],
             theme=Themes.OCEAN_DEEP,
         )
         table.title = "Configuration"
         table.align = "l"
+
         for idx, item in enumerate(proxy.proxy_db):
             if isinstance(item, tuple):
                 # print simple records
@@ -74,6 +76,7 @@ def cli(ctx: Context, proxy: ProxyModule | None):
             elif isinstance(item, FunctionType):
                 # for now, ignore handlers since they aren't added via CLI
                 continue
+
         result = table.get_string()
         _, _, result = result.partition("\n")
         result = result.strip()

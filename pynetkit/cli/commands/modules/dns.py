@@ -57,12 +57,14 @@ def cli(ctx: Context, dns: DnsModule | None):
             no_top=i > 0,
             color=True,
         )
+
         table = ColorTable(
             [" ", "Name", "Type", "Answer(s)"],
             theme=Themes.OCEAN_DEEP,
         )
         table.title = "Records"
         table.align = "l"
+
         for idx, item in enumerate(dns.dns_db):
             if isinstance(item, tuple):
                 # print simple records
@@ -75,6 +77,7 @@ def cli(ctx: Context, dns: DnsModule | None):
                     continue
                 address, name, type = record
                 table.add_row([idx + 1, name, type, mc(f"§8Upstream: §b{address}")])
+
         result = table.get_string()
         _, _, result = result.partition("\n")
         result = result.strip()

@@ -116,12 +116,14 @@ def cli(ctx: Context):
     if not CONFIG:
         print_no_mapping()
         return
+
     table = ColorTable(
         [" ", "Name", "Type", "Configured addresses", "Keep in config (-k)?"],
         theme=Themes.OCEAN_DEEP,
     )
     table.title = "Adapter configuration / mapping"
     table.align = "l"
+
     for idx, config in sorted(CONFIG.items()):
         config: NetworkConfig
         keep = "No"

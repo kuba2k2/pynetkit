@@ -89,12 +89,14 @@ def cli(ctx: Context):
     if not CONFIG:
         print_no_mapping()
         return
+
     table = ColorTable(
         [" ", "Name", "Mode(s)", "Configured as", "Config SSID", "Config password"],
         theme=Themes.OCEAN_DEEP,
     )
     table.title = "Wi-Fi adapter configuration"
     table.align = "l"
+
     for idx, config in sorted(CONFIG.items()):
         config: NetworkConfig
         if config.adapter.type not in MODE_NAMES:

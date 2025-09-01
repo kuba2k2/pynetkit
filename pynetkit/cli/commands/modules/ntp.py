@@ -50,6 +50,7 @@ def cli(ctx: Context, ntp: NtpModule | None):
             offsets += [("", f"{ip} - {delta}") for ip, delta in ntp.offset.items()]
         else:
             offsets = [("Time offset", "(empty)")]
+
         config_table(
             f"NTP server #{NTP.index(ntp) + 1}",
             (
