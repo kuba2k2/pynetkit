@@ -188,7 +188,7 @@ def hostname(dhcp: DhcpModule, name: str | None):
 @cloup.argument(
     "option",
     type=str,
-    help="Option specifier - num:name(format) - only 'name' is required.",
+    help="Option specifier - [V:][num:]name[(format)]",
 )
 @cloup.argument(
     "data",
@@ -204,12 +204,13 @@ def hostname(dhcp: DhcpModule, name: str | None):
 def option(dhcp: DhcpModule, option: str, data: str, client: MAC | None):
     client_str = f"§f for client §d{client}§r" if client else "§r"
     opt = DhcpServerOption.parse(option, data, client)
+    option, data = opt.dump()
     if not data:
         dhcp.del_option(opt)
-        mce(f"§fOption removed: §d{str(opt).strip()}{client_str}")
+        mce(f"§fOption removed: §d{option}{client_str}")
     else:
         dhcp.add_option(opt)
-        mce(f"§fOption added: §d{str(opt).strip()}§f = §d{opt.value}{client_str}")
+        mce(f"§fOption added: §d{option}§f = §d{data}{client_str}")
 
 
 class CommandModule(BaseCommandModule):

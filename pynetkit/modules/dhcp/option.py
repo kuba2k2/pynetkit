@@ -8,7 +8,6 @@ from typing import Any
 from macaddress import MAC
 
 from pynetkit.util.misc import parse_timedelta
-
 from .enums import DhcpOptionType
 
 # { format: (parser, writer) }
@@ -51,6 +50,7 @@ class DhcpServerOption:
     name: str | None = None
     format: str | None = None
     client: MAC | None = None
+    vendor: bool = False
 
     def __post_init__(self) -> None:
         if self.name is None and not isinstance(self.key, DhcpOptionType):
@@ -59,13 +59,14 @@ class DhcpServerOption:
             raise ValueError("Format must be specified for custom options")
 
     @property
-    def sort_key(self) -> tuple[int, int]:
-        return 0 if self.client else 1, self.key
+    def sort_key(self) -> tuple[bool, bool, int]:
+        return not self.client, self.vendor, self.key
 
     def __str__(self) -> str:
+        vendor = "V:" if self.vendor else "  "
         if isinstance(self.key, DhcpOptionType):
-            return f"{self.key:3d}: {self.key.name} ({self.format or BUILTIN_FORMATS[self.key]})"
-        return f"{self.key:3d}: {self.name} ({self.format})"
+            return f"{vendor}{self.key:3d}: {self.key.name} ({self.format or BUILTIN_FORMATS[self.key]})"
+        return f"{vendor}{self.key:3d}: {self.name} ({self.format})"
 
     def get_value(self) -> Any | None:
         if self.value is None or self.value is Ellipsis:
@@ -75,12 +76,13 @@ class DhcpServerOption:
         return self.value
 
     def dump(self) -> tuple[str, str | int | bool]:
+        vendor = "V:" if self.vendor else ""
         if isinstance(self.key, DhcpOptionType):
-            option = self.key.name
+            option = f"{vendor}{self.key.name}"
             if self.format:
                 option += f"({self.format})"
         else:
-            option = f"{self.key}:{self.name}({self.format})"
+            option = f"{vendor}{self.key}:{self.name}({self.format})"
 
         match self.value:
             case None:
@@ -100,33 +102,35 @@ class DhcpServerOption:
         data: str,
         client: MAC | None = None,
     ) -> "DhcpServerOption":
-        match = re.match(r"^(\d+:)?([^()]+)(\(\w+\))?$", option)
+        match = re.match(r"^(V:)?(\d+:)?([^()]+)(\(\w+\))?$", option)
 
         if not match:
             raise ValueError(f"Cannot parse option: {option}")
-        if match[1] and not match[2]:
+        if match[2] and not match[3]:
             raise ValueError(f"Custom option name missing: {option}")
-        if match[1] and not match[3]:
+        if match[2] and not match[4]:
             raise ValueError(f"Custom option format missing: {option}")
 
-        if match[1]:
-            key = int(match[1].rstrip(":"))
-            name = match[2]
-            format = match[3].strip("()")
-        elif match[2] not in [o.name for o in DhcpOptionType]:
-            raise ValueError(f"Unknown option '{match[2]}', use custom option syntax")
+        if match[2]:
+            key = int(match[2].rstrip(":"))
+            name = match[3]
+            format = match[4].strip("()")
+        elif match[3] not in [o.name for o in DhcpOptionType]:
+            raise ValueError(f"Unknown option '{match[3]}', use custom option syntax")
         else:
-            key = next(o for o in DhcpOptionType if o.name == match[2])
+            key = next(o for o in DhcpOptionType if o.name == match[3])
             name = None
-            format = match[3].strip("()") if match[3] else None
+            format = match[4].strip("()") if match[4] else None
 
         if format and format not in FORMATS:
             raise ValueError(f"Unknown format '{format}'")
         elif not format and key not in BUILTIN_FORMATS:
-            raise ValueError(f"Specify custom format for '{match[2]}'")
+            raise ValueError(f"Specify custom format for '{match[3]}'")
 
         match data:
             case None:
+                value = None
+            case "":
                 value = None
             case "...":
                 value = Ellipsis
@@ -134,4 +138,11 @@ class DhcpServerOption:
                 parser = FORMATS[format or BUILTIN_FORMATS[key]][0]
                 value = parser(data)
 
-        return DhcpServerOption(key, value, name, format, client)
+        return DhcpServerOption(
+            key=key,
+            value=value,
+            name=name,
+            format=format,
+            client=client,
+            vendor=match[1] == "V:",
+        )

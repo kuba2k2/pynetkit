@@ -14,7 +14,7 @@ from pynetkit.util.misc import wake_udp_socket
 from .enums import DhcpMessageType, DhcpOptionType, DhcpPacketType
 from .events import DhcpLeaseEvent, DhcpReleaseEvent
 from .option import DhcpServerOption
-from .structs import DhcpPacket
+from .structs import DhcpOption, DhcpPacket
 
 
 class DhcpModule(ModuleBase):
@@ -85,7 +85,8 @@ class DhcpModule(ModuleBase):
         self.options = [
             o
             for o in self.options
-            if (int(o.key), o.client) != (int(opt.key), opt.client)
+            if (int(o.key), o.client, o.vendor)
+            != (int(opt.key), opt.client, opt.vendor)
         ]
 
     def sort_options(self) -> None:
@@ -182,6 +183,7 @@ class DhcpModule(ModuleBase):
             DhcpOptionType.BROADCAST_ADDRESS: self.interface.network.broadcast_address,
             DhcpOptionType.SERVER_IDENTIFIER: self.interface.ip,
         }
+        vendor_opts: list[DhcpOption] = []
 
         for opt in self.get_options(packet.client_mac_address):
             key, value = opt.key, opt.get_value()
@@ -189,7 +191,16 @@ class DhcpModule(ModuleBase):
                 value = auto_options.get(key)
             if value is None:
                 continue
-            packet[key] = value
+            if opt.vendor:
+                vendor_opts.append(DhcpOption(option=key, length=0, data=value))
+            else:
+                packet[key] = value
+
+        if vendor_opts:
+            vendor = b""
+            for opt in vendor_opts:
+                vendor += opt.pack()
+            packet[DhcpOptionType.VENDOR_SPECIFIC_INFORMATION] = vendor
 
         for option in param_list or []:
             if option in packet:
