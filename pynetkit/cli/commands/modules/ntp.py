@@ -1,13 +1,11 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-25.
 
-from datetime import timedelta
 from ipaddress import IPv4Address
 from logging import error, warning
 from typing import Generator
 
 import click
 import cloup
-import pytimeparse as pytimeparse
 from click import Context
 
 from pynetkit.cli.commands.base import (
@@ -19,6 +17,7 @@ from pynetkit.cli.commands.base import (
 from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import config_table, mce
 from pynetkit.modules.ntp import NtpModule
+from pynetkit.util.misc import parse_timedelta
 
 NTP: list[NtpModule] = [NtpModule()]
 
@@ -144,18 +143,13 @@ def offset(ntp: NtpModule, address: IPv4Address, time_offset: tuple[str]):
         mce(f"§fTime offset for host §d{address}§f disabled§r")
         ntp.offset.pop(address, None)
         return
-    sign = "+"
-    if time_offset.startswith("-"):
-        sign = "-"
-        time_offset = time_offset[1:]
-    seconds = pytimeparse.parse(time_offset)
-    if seconds is None:
+    delta = parse_timedelta(time_offset)
+    if delta is None:
         error("Couldn't parse the supplied time offset")
         return
-    delta = timedelta(seconds=seconds)
-    mce(f"§fTime offset for host §d{address}§f set to §d{sign}{delta}§r")
-    if sign == "-":
-        delta = -delta
+    sign = "-" if delta.total_seconds() < 0 else "+"
+    delta_abs = -delta if sign == "-" else delta
+    mce(f"§fTime offset for host §d{address}§f set to §d{sign}{delta_abs}§r")
     ntp.offset[address] = delta
 
 

@@ -1,10 +1,13 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-6-16.
 
 import re
+from datetime import timedelta
 from ipaddress import IPv4Address
 from pathlib import Path
 from socket import AF_INET, IPPROTO_UDP, SOCK_DGRAM, socket
 from typing import Iterable
+
+import pytimeparse
 
 
 def matches(pattern: str | bytes, value: str | bytes) -> bool:
@@ -49,3 +52,17 @@ def wake_udp_socket(address: IPv4Address, port: int):
         address = "127.0.0.1"
     sock.sendto(b"", (str(address), port))
     sock.close()
+
+
+def parse_timedelta(offset: str) -> timedelta | None:
+    sign = "+"
+    if offset.startswith("-"):
+        sign = "-"
+        offset = offset[1:]
+    seconds = pytimeparse.parse(offset)
+    if seconds is None:
+        return None
+    delta = timedelta(seconds=seconds)
+    if sign == "-":
+        delta = -delta
+    return delta
