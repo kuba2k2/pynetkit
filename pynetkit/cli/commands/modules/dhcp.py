@@ -7,6 +7,7 @@ from typing import Generator
 import click
 import cloup
 from click import Context
+from macaddress import MAC
 
 from pynetkit.cli.commands.base import (
     CONTEXT_SETTINGS,
@@ -16,7 +17,7 @@ from pynetkit.cli.commands.base import (
 )
 from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import config_table, mce
-from pynetkit.modules.dhcp import DhcpModule
+from pynetkit.modules.dhcp import DhcpModule, DhcpServerOption
 
 DHCP: list[DhcpModule] = [DhcpModule()]
 
@@ -43,6 +44,15 @@ def cli(ctx: Context, dhcp: DhcpModule | None):
     servers = [dhcp] if dhcp else DHCP
 
     for i, dhcp in enumerate(servers):
+        if dhcp.options:
+            options = [("Extra options", "")]
+            for opt in dhcp.options:
+                value_str = "§8Dynamic" if opt.value is Ellipsis else str(opt.value)
+                client_str = opt.client and f" (§d{opt.client}§r)" or ""
+                options += [(f" - {opt}", value_str + client_str)]
+        else:
+            options = [("Extra options", "(empty)")]
+
         if dhcp.hosts:
             leases = [("Active leases", "")]
             for mac, ip in dhcp.hosts.items():
@@ -67,9 +77,8 @@ def cli(ctx: Context, dhcp: DhcpModule | None):
             ("Interface", dhcp.interface or "§cNot set"),
             ("Lease range", dhcp.range and dhcp.range[0] or "Using entire network"),
             ("", dhcp.range and dhcp.range[1] or ""),
-            ("DNS address", dhcp.dns or "Same as server"),
-            ("Router address", dhcp.router or "Same as server"),
             ("Host name", dhcp.hostname or "Not set"),
+            *options,
             *leases,
             no_top=i > 0,
             color=True,
@@ -162,34 +171,6 @@ def range_(dhcp: DhcpModule, first: IPv4Address, last: IPv4Address):
     mce(f"§fLease address range set to: §d{dhcp.range[0]} - {dhcp.range[1]}§r")
 
 
-@cloup.command(help="Set DNS address.")
-@index_option(cls=DhcpModule, items=DHCP, name="dhcp", title="DHCP server")
-@cloup.argument(
-    "address",
-    type=IPv4Address,
-    help="DNS server address (or 0.0.0.0 to use server address).",
-)
-def dns(dhcp: DhcpModule, address: IPv4Address):
-    if int(address) == 0:
-        address = None
-    dhcp.dns = address
-    mce(f"§fDNS address set to: §d{dhcp.dns or '(server address)'}§r")
-
-
-@cloup.command(help="Set router address.")
-@index_option(cls=DhcpModule, items=DHCP, name="dhcp", title="DHCP server")
-@cloup.argument(
-    "address",
-    type=IPv4Address,
-    help="Router address (or 0.0.0.0 to use server address).",
-)
-def router(dhcp: DhcpModule, address: IPv4Address):
-    if int(address) == 0:
-        address = None
-    dhcp.router = address
-    mce(f"§fRouter address set to: §d{dhcp.router or '(server address)'}§r")
-
-
 @cloup.command(help="Set reported hostname.")
 @index_option(cls=DhcpModule, items=DHCP, name="dhcp", title="DHCP server")
 @cloup.argument(
@@ -200,6 +181,35 @@ def router(dhcp: DhcpModule, address: IPv4Address):
 def hostname(dhcp: DhcpModule, name: str | None):
     dhcp.hostname = name or None
     mce(f"§fHostname set to: §d{dhcp.hostname or '(not set)'}§r")
+
+
+@cloup.command(help="Add/remove DHCP options for clients.")
+@index_option(cls=DhcpModule, items=DHCP, name="dhcp", title="DHCP server")
+@cloup.argument(
+    "option",
+    type=str,
+    help="Option specifier - num:name(format) - only 'name' is required.",
+)
+@cloup.argument(
+    "data",
+    type=str,
+    help='Option data (or "" to remove).',
+)
+@cloup.argument(
+    "client",
+    type=MAC,
+    required=False,
+    help="Target client's MAC address (defaults to all).",
+)
+def option(dhcp: DhcpModule, option: str, data: str, client: MAC | None):
+    client_str = f"§f for client §d{client}§r" if client else "§r"
+    opt = DhcpServerOption.parse(option, data, client)
+    if not data:
+        dhcp.del_option(opt)
+        mce(f"§fOption removed: §d{str(opt).strip()}{client_str}")
+    else:
+        dhcp.add_option(opt)
+        mce(f"§fOption added: §d{str(opt).strip()}§f = §d{opt.value}{client_str}")
 
 
 class CommandModule(BaseCommandModule):
@@ -230,9 +240,10 @@ class CommandModule(BaseCommandModule):
                     port=dhcp.port,
                     interface=dhcp.interface,
                     range=dhcp.range and dict(first=dhcp.range[0], last=dhcp.range[1]),
-                    dns=dhcp.dns,
-                    router=dhcp.router,
                     hostname=dhcp.hostname,
+                    options={
+                        str(k or "all"): v for k, v in dhcp.dump_options().items()
+                    },
                     # hosts=dhcp.hosts,
                 )
                 for dhcp in DHCP
@@ -257,15 +268,16 @@ class CommandModule(BaseCommandModule):
                     f"dhcp range{index} {item['range'].get('first')} "
                     f"{item['range'].get('last')}"
                 )
-            if item.get("dns"):
-                yield f"dhcp dns{index} {item['dns']}"
-            if item.get("router"):
-                yield f"dhcp router{index} {item['router']}"
             if item.get("hostname") != "pynetkit":
                 yield f"dhcp hostname{index} " + (item["hostname"] or '""')
+            if isinstance(item.get("options"), dict):
+                for client, options in item["options"].items():
+                    client_arg = f" {client}" if client != "all" else ""
+                    for option, data in options.items():
+                        yield f'dhcp option{index} {option} "{data}"{client_arg}'
 
 
 cli.section("Module operation", start, stop, create, destroy)
 cli.section("Primary options", listen, interface, range_)
-cli.section("Additional options", dns, router, hostname)
+cli.section("Additional options", hostname, option)
 COMMAND = CommandModule()

@@ -41,7 +41,7 @@ class DhcpOption(DataStruct):
         built("B", lambda ctx: ctx.sizeof("data"))
     )
     data: Any = cond(lambda ctx: ctx.option != 255, if_not=None)(
-        switch(lambda ctx: ctx.option)(
+        switch(lambda ctx: ctx.option if not isinstance(ctx.data, bytes) else None)(
             MESSAGE_TYPE=(DhcpMessageType, field("B")),
             CLIENT_IDENTIFIER=(DhcpClientIdentifier, subfield()),
             MAXIMUM_MESSAGE_SIZE=(int, field("H")),
@@ -67,7 +67,10 @@ class DhcpOption(DataStruct):
                 list[DhcpOptionType],
                 varlist(lambda ctx: ctx.length)(field("B")),
             ),
-            default=(bytes, field(lambda ctx: ctx.length)),
+            default=(
+                bytes,
+                field(lambda ctx: ctx.length if ctx.G.unpacking else len(ctx.data)),
+            ),
         )
     )
 
@@ -102,13 +105,13 @@ class DhcpPacket(DataStruct):
                 return True
         return False
 
-    def __getitem__(self, type: DhcpOptionType) -> Any:
+    def __getitem__(self, type: DhcpOptionType | int) -> Any:
         return self.option(type).data
 
-    def __setitem__(self, type: DhcpOptionType, data: Any) -> None:
+    def __setitem__(self, type: DhcpOptionType | int, data: Any) -> None:
         self.option(type).data = data
 
-    def option(self, type: DhcpOptionType) -> DhcpOption:
+    def option(self, type: DhcpOptionType | int) -> DhcpOption:
         for option in self.options:
             if option.option == type:
                 return option

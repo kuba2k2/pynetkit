@@ -1,8 +1,10 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
+from collections import defaultdict
 from datetime import timedelta
 from ipaddress import IPv4Address, IPv4Interface
 from socket import AF_INET, IPPROTO_UDP, SO_BROADCAST, SOCK_DGRAM, SOL_SOCKET, socket
+from typing import Any
 
 from macaddress import MAC
 
@@ -11,6 +13,7 @@ from pynetkit.util.misc import wake_udp_socket
 
 from .enums import DhcpMessageType, DhcpOptionType, DhcpPacketType
 from .events import DhcpLeaseEvent, DhcpReleaseEvent
+from .option import DhcpServerOption
 from .structs import DhcpPacket
 
 
@@ -22,9 +25,8 @@ class DhcpModule(ModuleBase):
     # runtime configuration
     interface: IPv4Interface | None = None
     range: tuple[IPv4Address, IPv4Address] | None = None
-    dns: IPv4Address | None = None
-    router: IPv4Address | None = None
     hostname: str | None = None
+    options: list[DhcpServerOption] = None
     # runtime status
     hosts: dict[MAC, IPv4Address] | None = None
     hosts_names: dict[MAC, str] | None = None
@@ -37,9 +39,23 @@ class DhcpModule(ModuleBase):
         self.address = IPv4Address("0.0.0.0")
         self.port = 67
         self.hostname = "pynetkit"
+        self.options = [
+            DhcpServerOption(DhcpOptionType.SUBNET_MASK, ...),
+            DhcpServerOption(DhcpOptionType.ROUTER, ...),
+            DhcpServerOption(DhcpOptionType.DNS_SERVERS, ...),
+            DhcpServerOption(DhcpOptionType.DOMAIN_NAME, "local"),
+            DhcpServerOption(DhcpOptionType.INTERFACE_MTU_SIZE, 1500),
+            DhcpServerOption(DhcpOptionType.BROADCAST_ADDRESS, ...),
+            DhcpServerOption(DhcpOptionType.NETBIOS_NODE_TYPE, 8),
+            DhcpServerOption(DhcpOptionType.IP_ADDRESS_LEASE_TIME, timedelta(days=7)),
+            DhcpServerOption(DhcpOptionType.SERVER_IDENTIFIER, ...),
+            DhcpServerOption(DhcpOptionType.RENEW_TIME_VALUE, timedelta(hours=12)),
+            DhcpServerOption(DhcpOptionType.REBINDING_TIME_VALUE, timedelta(days=7)),
+        ]
         self.hosts = {}
         self.hosts_names = {}
         self.hosts_vendor_cid = {}
+        self.sort_options()
 
     async def run(self) -> None:
         self.info(f"Starting DHCP server on {self.address}:{self.port}")
@@ -59,6 +75,35 @@ class DhcpModule(ModuleBase):
             wake_udp_socket(self.address, self.port)
             self._sock.close()
         self._sock = None
+
+    def add_option(self, opt: DhcpServerOption) -> None:
+        self.del_option(opt)
+        self.options.append(opt)
+        self.sort_options()
+
+    def del_option(self, opt: DhcpServerOption) -> None:
+        self.options = [
+            o
+            for o in self.options
+            if (int(o.key), o.client) != (int(opt.key), opt.client)
+        ]
+
+    def sort_options(self) -> None:
+        self.options = sorted(self.options, key=lambda o: o.sort_key)
+
+    def get_options(self, client: MAC) -> list[DhcpServerOption]:
+        return list(
+            {
+                o.key: o for o in self.options if o.client is None or o.client == client
+            }.values()
+        )
+
+    def dump_options(self) -> dict[MAC | None, dict[str, str | int | bool]]:
+        out = defaultdict(dict)
+        for opt in self.options:
+            option, data = opt.dump()
+            out[opt.client][option] = data
+        return out
 
     def _process_request(self) -> None:
         data, _ = self._sock.recvfrom(4096)
@@ -114,8 +159,6 @@ class DhcpModule(ModuleBase):
         )
 
         address = self._choose_ip_address(packet.client_mac_address)
-        network = self.interface.network
-
         self.hosts_names[packet.client_mac_address] = host_name
         self.hosts_vendor_cid[packet.client_mac_address] = vendor_cid
 
@@ -131,17 +174,22 @@ class DhcpModule(ModuleBase):
         else:
             action = "ACK-ing"
             packet[DhcpOptionType.MESSAGE_TYPE] = DhcpMessageType.ACK
-        packet[DhcpOptionType.SUBNET_MASK] = self.interface.netmask
-        packet[DhcpOptionType.ROUTER] = self.router or self.interface.ip
-        packet[DhcpOptionType.DNS_SERVERS] = self.dns or self.interface.ip
-        packet[DhcpOptionType.DOMAIN_NAME] = "local"
-        packet[DhcpOptionType.INTERFACE_MTU_SIZE] = 1500
-        packet[DhcpOptionType.BROADCAST_ADDRESS] = network.broadcast_address
-        packet[DhcpOptionType.NETBIOS_NODE_TYPE] = 8
-        packet[DhcpOptionType.IP_ADDRESS_LEASE_TIME] = timedelta(days=7)
-        packet[DhcpOptionType.SERVER_IDENTIFIER] = self.interface.ip
-        packet[DhcpOptionType.RENEW_TIME_VALUE] = timedelta(hours=12)
-        packet[DhcpOptionType.REBINDING_TIME_VALUE] = timedelta(days=7)
+
+        auto_options: dict[int, Any] = {
+            DhcpOptionType.SUBNET_MASK: self.interface.netmask,
+            DhcpOptionType.ROUTER: self.interface.ip,
+            DhcpOptionType.DNS_SERVERS: self.interface.ip,
+            DhcpOptionType.BROADCAST_ADDRESS: self.interface.network.broadcast_address,
+            DhcpOptionType.SERVER_IDENTIFIER: self.interface.ip,
+        }
+
+        for opt in self.get_options(packet.client_mac_address):
+            key, value = opt.key, opt.get_value()
+            if value is Ellipsis:
+                value = auto_options.get(key)
+            if value is None:
+                continue
+            packet[key] = value
 
         for option in param_list or []:
             if option in packet:
