@@ -130,7 +130,7 @@ def dump(modules: tuple[str]):
             mce_yaml(yaml_dump(dict(config=module.config)))
         for script, commands in module.scripts.items():
             mce(f"§fScript §d{script}§f commands of the module §d{name}§r:")
-            mce("\n".join(f"- §b{c.command}§r" for c in commands))
+            mce("\n".join(f"- §b{c}§r" for c in commands))
 
 
 @cloup.command(help="Save the current config to a file.")
