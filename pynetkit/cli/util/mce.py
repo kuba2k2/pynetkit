@@ -43,7 +43,7 @@ def mce(value: str) -> None:
 def mce_yaml(value: str) -> None:
     flags = re.MULTILINE
     # colorize keys
-    value = re.sub(r"^( *[\w_]+?):", r"§c\1§r:", value, flags=flags)
+    value = re.sub(r"^( *[\S]+?):(\s)", r"§c\1§r:\2", value, flags=flags)
     value = re.sub(r"^( *- )([\w_]+?):", r"§f\1§c\2§r:", value, flags=flags)
     # colorize values
     value = re.sub(r"§r:( *[\d.:]+?)$", r"§r:§5\1§r", value, flags=flags)
