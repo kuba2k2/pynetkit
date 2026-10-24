@@ -124,7 +124,7 @@ class ProxyTarget:
     path: str | None = None
     # TODO protocol change option (RAW->TLS, etc)
     # protocol: ProxyProtocol = ProxyProtocol.RAW
-    http_proxy: tuple[str, int] = None
+    http_proxy: tuple[str, int] | None = None
 
     def __post_init__(self):
         if not self.port and self.host and ":" in self.host:
@@ -148,8 +148,8 @@ class ProxyTarget:
         return (
             f"{self.host or '*'}:{self.port or self.port or '*'}{self.path or ''}"
             + (
-                self.http_proxy
-                and f" (via {self.http_proxy[0]}:{self.http_proxy[1]})"
-                or ""
+                f" (via {self.http_proxy[0]}:{self.http_proxy[1]})"
+                if self.http_proxy
+                else ""
             )
         )
