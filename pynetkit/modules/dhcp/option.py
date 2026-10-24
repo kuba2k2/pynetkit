@@ -8,6 +8,7 @@ from typing import Any
 from macaddress import MAC
 
 from pynetkit.util.misc import parse_timedelta
+
 from .enums import DhcpOptionType
 
 # { format: (parser, writer) }

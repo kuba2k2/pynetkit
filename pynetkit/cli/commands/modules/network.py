@@ -174,8 +174,7 @@ async def list_(all: bool):
     click.echo(table.get_string())
 
 
-@cloup.command(
-    help="""
+@cloup.command(help="""
     Configure network adapter index map assignment.
 
     \b
@@ -183,8 +182,7 @@ async def list_(all: bool):
     - adapter title (or the beginning),
     - adapter type (wired/wireless/STA/AP), will match the first one found,
     - IP address of the adapter.
-    """
-)
+    """)
 @cloup.argument("index", type=int, help="Index to assign an adapter to.")
 @cloup.argument("query", help="Text that identifies the adapter to assign (see above).")
 @cloup.option("-k", "--keep", is_flag=True, help="Keep the assignment in saved config.")

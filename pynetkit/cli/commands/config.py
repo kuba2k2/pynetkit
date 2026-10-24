@@ -61,8 +61,7 @@ def cli(ctx: Context):
     else:
         mce(f"\n§aCurrent config is saved to: §d{config.path}§r\n")
 
-    mce(
-        """§fCommands:§r
+    mce("""§fCommands:§r
   §econfig meta §dname §cversion §aauthor§r  Set config metadata before saving.
   §econfig save§r                      Save the config with previous/default file name.
   §econfig save §dpath§r                 Save the config to §dpath§r.
@@ -75,8 +74,7 @@ def cli(ctx: Context):
   §econfig commands§r                  Show commands that make the current config.
   §econfig commands §cmodule§r...        Show commands for §cmodule§r(s).
   §econfig reset §cmodule§r...           Reset one or more §cmodule§r(s) (or 'all').
-    """
-    )
+    """)
 
     args = []
     for name, (_, module) in sorted(COMMANDS.items()):
