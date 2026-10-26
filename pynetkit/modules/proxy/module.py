@@ -12,8 +12,9 @@ from threading import Thread
 from typing import Callable
 
 from pynetkit.modules.base import ModuleBase
+from pynetkit.util.socketio import SocketIO
 
-from .types import ProxyProtocol, ProxySource, ProxyTarget, SocketIO
+from .types import ProxyProtocol, ProxySource, ProxyTarget
 
 HTTP_METHODS = [
     b"GET",

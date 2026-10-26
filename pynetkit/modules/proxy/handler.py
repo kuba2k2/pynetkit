@@ -6,8 +6,10 @@ from ipaddress import IPv4Address
 from socket import AF_INET, SOCK_STREAM, socket
 from socketserver import BaseRequestHandler
 
+from pynetkit.util.socketio import SocketIO
+
 from .events import ProxyEvent
-from .module import HTTP_METHODS, ProxyModule, ProxyProtocol, ProxySource, SocketIO
+from .module import HTTP_METHODS, ProxyModule, ProxyProtocol, ProxySource
 from .structs import TlsExtension, TlsHandshake, TlsHandshakeHello, TlsRecord
 
 

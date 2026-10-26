@@ -2,11 +2,10 @@
 
 from .events import ProxyEvent
 from .module import ProxyModule
-from .types import ProxyProtocol, ProxySource, ProxyTarget, SocketIO
+from .types import ProxyProtocol, ProxySource, ProxyTarget
 
 __all__ = [
     "ProxyModule",
-    "SocketIO",
     "ProxyProtocol",
     "ProxySource",
     "ProxyTarget",
