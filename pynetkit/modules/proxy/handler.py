@@ -35,25 +35,27 @@ class ProxyHandler(BaseRequestHandler):
             # handle request exceptions here
             self.proxy.exception(f"Proxy handler raised exception", exc_info=e)
 
-    def detect_protocol(self, sock: ProxySocket) -> ProxyProtocol:
+    def fill_address(self, sock: ProxySocket) -> None:
         match self.mode:
             case ProxyPortMode.DETECT:
                 peek = sock.io.peek(6)
                 if peek[0:3] == b"\x16\x03\x01" and peek[5] == 0x01:
-                    return ProxyProtocol.TLS
-                return ProxyProtocol.TCP
+                    protocol = ProxyProtocol.TLS
+                else:
+                    protocol = ProxyProtocol.TCP
             case ProxyPortMode.TCP | ProxyPortMode.HTTP:
-                return ProxyProtocol.TCP
+                protocol = ProxyProtocol.TCP
             case ProxyPortMode.TLS | ProxyPortMode.HTTPS:
                 if sock.parent and sock.parent.address.protocol == ProxyProtocol.TLS:
-                    return ProxyProtocol.TCP
-                return ProxyProtocol.TLS
+                    protocol = ProxyProtocol.TCP
+                else:
+                    protocol = ProxyProtocol.TLS
 
-    def fill_address(self, sock: ProxySocket) -> None:
-        match sock.address.protocol:
-            case None:
-                raise ValueError("Protocol is not set")
+        if sock.address.protocol is None:
+            sock.address.protocol = protocol
+        sock.protocol = protocol
 
+        match protocol:
             case ProxyProtocol.TCP if self.mode in (
                 ProxyPortMode.DETECT,
                 ProxyPortMode.HTTP,
@@ -111,16 +113,15 @@ class ProxyHandler(BaseRequestHandler):
                     )
                     break
 
+        self.proxy.verbose(f"Found protocol: {protocol.name}, address: {sock.address}")
+
     def handle(self) -> None:
         client = ProxySocket(
-            address=ProxyAddress(
-                port=self.port,
-            ),
+            address=ProxyAddress(port=self.port),
             io=SocketIO(self.request),
         )
 
         # detect if socket is TCP or TLS, based on the port matching mode
-        client.address.protocol = self.detect_protocol(client)
         # try to read address fields if possible (plaintext HTTP or TLS w/ SNI)
         self.fill_address(client)
 

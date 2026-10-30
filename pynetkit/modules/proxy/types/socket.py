@@ -7,6 +7,7 @@ from pynetkit.util.misc import matches
 from pynetkit.util.socketio import SocketIO
 
 from .address import ProxyAddress
+from .enums import ProxyProtocol
 
 
 @dataclass
@@ -14,6 +15,10 @@ class ProxySocket:
     address: ProxyAddress
     io: SocketIO
     parent: "ProxySocket | None" = None
+    protocol: ProxyProtocol | None = None
+
+    def __post_init__(self) -> None:
+        self.protocol = self.address.protocol
 
     def matches(self, pattern: ProxyAddress) -> bool:
         address = self.address
