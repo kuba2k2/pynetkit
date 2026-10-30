@@ -2,12 +2,15 @@
 
 from .events import ProxyEvent
 from .module import ProxyModule
-from .types import ProxyProtocol, ProxySource, ProxyTarget
+from .types.address import ProxyAddress
+from .types.enums import ProxyPortMode, ProxyProtocol
+from .types.socket import ProxySocket
 
 __all__ = [
     "ProxyModule",
-    "ProxyProtocol",
-    "ProxySource",
-    "ProxyTarget",
+    "ProxyAddress",
     "ProxyEvent",
+    "ProxyPortMode",
+    "ProxyProtocol",
+    "ProxySocket",
 ]

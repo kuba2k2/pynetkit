@@ -1,7 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
 import asyncio
-import re
 import threading
 from asyncio import Future
 from functools import partial
@@ -12,9 +11,10 @@ from threading import Thread
 from typing import Callable
 
 from pynetkit.modules.base import ModuleBase
-from pynetkit.util.socketio import SocketIO
 
-from .types import ProxyProtocol, ProxySource, ProxyTarget
+from .types.address import ProxyAddress
+from .types.enums import ProxyPortMode
+from .types.socket import ProxySocket
 
 HTTP_METHODS = [
     b"GET",
@@ -31,10 +31,10 @@ class ProxyModule(ModuleBase):
     PRE_RUN_CONFIG = ["address", "ports"]
     # pre-run configuration
     address: IPv4Address
-    ports: dict[int, ProxyProtocol]
+    ports: dict[int, ProxyPortMode]
     # runtime configuration
     proxy_db: list[
-        tuple[ProxySource, ProxyTarget] | Callable[[ProxySource, SocketIO], ProxyTarget]
+        tuple[ProxyAddress, ProxyAddress] | Callable[[ProxySocket], ProxyAddress]
     ] = None
     # server handle
     _threads: list[Thread] = None
@@ -44,26 +44,25 @@ class ProxyModule(ModuleBase):
         super().__init__()
         self.address = IPv4Address("0.0.0.0")
         self.ports = {
-            80: ProxyProtocol.HTTP,
-            443: ProxyProtocol.TLS,
+            80: ProxyPortMode.HTTP,
+            443: ProxyPortMode.HTTPS,
         }
         self.proxy_db = [
-            (ProxySource(), ProxyTarget()),
+            (ProxyAddress(), ProxyAddress()),
         ]
         self._threads = []
         self._servers = []
 
-    # noinspection DuplicatedCode
     async def start(self) -> None:
         if not self.ports:
             raise RuntimeError("Proxy listen ports not configured")
 
         futures = []
-        for port, protocol in self.ports.items():
+        for port, mode in self.ports.items():
             future = self.make_future()
             thread = Thread(
                 target=self.proxy_entrypoint,
-                args=[future, port, protocol],
+                args=[future, port, mode],
                 daemon=True,
             )
             thread.start()
@@ -71,7 +70,6 @@ class ProxyModule(ModuleBase):
 
         await asyncio.gather(*futures)
 
-    # noinspection DuplicatedCode
     async def stop(self) -> None:
         self.should_run = False
         for server in list(self._servers):
@@ -88,19 +86,19 @@ class ProxyModule(ModuleBase):
         self,
         future: Future,
         port: int,
-        protocol: ProxyProtocol,
+        mode: ProxyPortMode,
     ) -> None:
         from .handler import ProxyHandler
 
         self.resolve_future(future)
-        self.info(f"Starting {protocol.name} proxy on {self.address}:{port}")
+        self.info(f"Starting {mode.name} proxy on {self.address}:{port}")
         server = ThreadingTCPServer(
             server_address=(str(self.address), port),
             RequestHandlerClass=partial(
                 ProxyHandler,
                 proxy=self,
                 port=port,
-                protocol=protocol,
+                mode=mode,
             ),
         )
         self._threads.append(threading.current_thread())
@@ -114,72 +112,24 @@ class ProxyModule(ModuleBase):
             self._threads.remove(threading.current_thread())
             self._servers.remove(server)
 
-    def add_proxy(self, source: ProxySource, target: ProxyTarget) -> None:
-        self.proxy_db.append((source, target))
-
-    def add_simple_proxy(
-        self,
-        source_host: str,
-        target_host: str,
-        source_port: int = 0,
-        target_port: int = 0,
-        source_protocol: ProxyProtocol = ProxyProtocol.ANY,
-    ) -> ProxyTarget:
-        source = ProxySource(
-            host=source_host,
-            port=source_port,
-            protocol=source_protocol,
-        )
-        target = ProxyTarget(
-            host=target_host,
-            port=target_port,
-        )
-        self.proxy_db.append((source, target))
-        return target
+    def add_proxy(self, pattern: ProxyAddress, rewrite: ProxyAddress) -> None:
+        self.proxy_db.append((pattern, rewrite))
 
     def clear_proxy_db(self) -> None:
         self.proxy_db = []
 
-    def resolve_target(self, source: ProxySource, io: SocketIO | None) -> ProxyTarget:
-        source_match: ProxySource | None = None
+    def resolve_target(self, socket: ProxySocket) -> ProxyAddress:
         for handler in self.proxy_db:
             if callable(handler):
-                target = handler(source, io)
-                if target:
-                    break
+                address = handler(socket)
+                if address:
+                    return address
             else:
-                source_match, target = handler
-                if source_match.matches(source):
-                    break
-        else:
-            raise ValueError(f"No matching route for {source}")
+                pattern, rewrite = handler
+                if socket.matches(pattern):
+                    return socket.rewrite(pattern, rewrite)
 
-        target = ProxyTarget(target.host, target.port, target.path, target.http_proxy)
-        if not target.host:
-            target.host = source.host
-        if target.port == 0:
-            target.port = source.port
-        if not target.path:
-            target.path = source.path
-        if not target.host:
-            raise ValueError(f"Couldn't determine target hostname for {source}")
-
-        # perform RegEx replacements, if needed
-        if source_match:
-            if source.host and "$" in target.host and "(" in source_match.host:
-                target.host = re.sub(
-                    source_match.host,
-                    target.host.replace("$", "\\"),
-                    source.host,
-                )
-            if source.path and "$" in target.path and "(" in source_match.path:
-                target.path = re.sub(
-                    source_match.path,
-                    target.path.replace("$", "\\"),
-                    source.path,
-                )
-
-        return target
+        raise ValueError(f"No matching route for {socket.address}")
 
     def get_local_addresses(self) -> list[str]:
         addresses = gethostbyname_ex(gethostname())[2]

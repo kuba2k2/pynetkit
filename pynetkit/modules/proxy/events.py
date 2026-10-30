@@ -5,11 +5,11 @@ from ipaddress import IPv4Address
 
 from pynetkit.modules.base import BaseEvent
 
-from .types import ProxySource, ProxyTarget
+from .types.address import ProxyAddress
 
 
 @dataclass
 class ProxyEvent(BaseEvent):
     address: IPv4Address
-    source: ProxySource
-    target: ProxyTarget
+    source: ProxyAddress
+    target: ProxyAddress

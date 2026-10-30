@@ -18,7 +18,13 @@ from pynetkit.cli.commands.base import (
 )
 from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import config_table, mce
-from pynetkit.modules.proxy import ProxyModule, ProxyProtocol, ProxySource, ProxyTarget
+from pynetkit.modules.proxy import (
+    ProxyAddress,
+    ProxyModule,
+    ProxyPortMode,
+    ProxyProtocol,
+    ProxySocket,
+)
 
 PROXY: list[ProxyModule] = [ProxyModule()]
 
@@ -53,15 +59,15 @@ def cli(ctx: Context, proxy: ProxyModule | None):
             ),
             ("Listen address", proxy.address),
             *(
-                ("", f":{port} ({protocol.name})")
-                for port, protocol in sorted(proxy.ports.items())
+                ("", f":{port} ({mode.name})")
+                for port, mode in sorted(proxy.ports.items())
             ),
             no_top=i > 0,
             color=True,
         )
 
         table = ColorTable(
-            [" ", "Source", "Target"],
+            [" ", "Pattern", "Rewrite", "Via"],
             theme=Themes.OCEAN_DEEP,
         )
         table.title = "Configuration"
@@ -70,9 +76,10 @@ def cli(ctx: Context, proxy: ProxyModule | None):
         for idx, item in enumerate(proxy.proxy_db):
             if isinstance(item, tuple):
                 # print simple records
-                source: ProxySource = item[0]
-                target: ProxyTarget = item[1]
-                table.add_row([idx + 1, str(source), str(target)])
+                pattern: ProxyAddress = item[0]
+                rewrite: ProxyAddress = item[1]
+                via = f"{rewrite.via[0]}:{rewrite.via[1]}" if rewrite.via else ""
+                table.add_row([idx + 1, str(pattern), str(rewrite), via])
             elif isinstance(item, FunctionType):
                 # for now, ignore handlers since they aren't added via CLI
                 continue
@@ -136,27 +143,27 @@ def listen(proxy: ProxyModule, address: IPv4Address):
 @index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
 @cloup.argument("port", type=int, help="Listen port number.")
 @cloup.argument(
-    "protocol",
-    type=Choice([p.name for p in ProxyProtocol], case_sensitive=False),
-    help="Accepted protocol type (RAW/TLS/HTTP/ANY).",
+    "mode",
+    type=Choice([m.name for m in ProxyPortMode], case_sensitive=False),
+    help="Port matching mode (DETECT/TCP/TLS/HTTP/HTTPS).",
 )
-def port_(proxy: ProxyModule, port: int, protocol: str):
-    protocol = next(p for p in ProxyProtocol if p.name == protocol)
+def port_(proxy: ProxyModule, port: int, mode: str):
+    mode = next(m for m in ProxyPortMode if m.name == mode)
     ports = dict(proxy.ports)
-    ports[port] = protocol
+    ports[port] = mode
     proxy.ports = ports
-    mce(f"§fPort §d{port}§f set to protocol §d{protocol}§r")
+    mce(f"§fPort §d{port}§f set with matching mode §d{mode}§r")
 
 
 @cloup.command(help="Set a proxy target for the given source.", name="set")
 @index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
 @cloup.argument(
-    "source",
-    help='Source [scheme://]host[:port][/path] (accepts RegEx). Use ".*" to match any.',
+    "pattern",
+    help='Source [proto://]host[:port][/path] (accepts RegEx). Use "" to match any.',
 )
 @cloup.argument(
-    "target",
-    help='Target host[:port][/path]. Use ".*" to leave source unchanged.',
+    "rewrite",
+    help='Target [proto://]host[:port][/path]. Use "" to leave source unchanged.',
 )
 @cloup.argument(
     "via",
@@ -165,54 +172,53 @@ def port_(proxy: ProxyModule, port: int, protocol: str):
 )
 def set_(
     proxy: ProxyModule,
-    source: str,
-    target: str,
+    pattern: str,
+    rewrite: str,
     via: str | None,
 ):
-    source = ProxySource.parse(source)
-    if not source:
-        error(f"Couldn't parse source URL: {source}")
-    target = ProxyTarget.parse(target)
-    if not target:
-        error(f"Couldn't parse target URL: {target}")
+    pattern = ProxyAddress.parse(pattern)
+    if not pattern:
+        error(f"Couldn't parse pattern string")
+    rewrite = ProxyAddress.parse(rewrite)
+    if not rewrite:
+        error(f"Couldn't parse rewrite string")
         return
-    if not source:
+    if not pattern:
         return
 
+    via_str = ""
     if via and ":" in via:
         via_host, _, via_port = via.rpartition(":")
         via_port = int(via_port)
-        target.http_proxy = via_host, via_port
+        rewrite.via = via_host, via_port
+        via_str = f" via §d{via_host}:{via_port}§r"
 
     # check some known bad usages
-    if target.host == ".*":
-        target.host = None
-    if source.port and source.port not in proxy.ports:
-        warning(f"Source port {source.port} is not configured as a proxy listen port")
-    if source.path and source.protocol != ProxyProtocol.HTTP:
-        if source.protocol != ProxyProtocol.ANY:
-            error("Source path can only be used for HTTP")
-            return
-        source.protocol = ProxyProtocol.HTTP
+    if pattern.port and pattern.port not in proxy.ports:
+        warning(f"Pattern port {pattern.port} is not configured as a proxy listen port")
 
     for i, item in enumerate(proxy.proxy_db):
         if not isinstance(item, tuple):
             continue
-        prev_source: ProxySource = item[0]
-        if prev_source != source:
+        prev_pattern: ProxyAddress = item[0]
+        if prev_pattern != pattern:
             continue
-        prev_target: ProxyTarget = item[1]
-        proxy.proxy_db[i] = source, target
+        prev_rewrite: ProxyAddress = item[1]
+        proxy.proxy_db[i] = pattern, rewrite
         mce(
             f"§fProxy record replaced"
-            f" - source: §d{source}§f"
-            f" - was: §d{prev_target}§f"
-            f" - now: §d{target}§r"
+            f" - pattern: §d{pattern}§f"
+            f" - was: §d{prev_rewrite}§f"
+            f" - now: §d{rewrite}§r{via_str}"
         )
         break
     else:
-        proxy.proxy_db.append((source, target))
-        mce(f"§fNew proxy added" f" - source: §d{source}§f" f" - now: §d{target}§f")
+        proxy.proxy_db.append((pattern, rewrite))
+        mce(
+            f"§fNew proxy added"
+            f" - pattern: §d{pattern}§f"
+            f" - rewrite: §d{rewrite}§f{via_str}"
+        )
 
 
 @cloup.command(help="Delete a proxy record from the database.")
@@ -257,38 +263,30 @@ def move(proxy: ProxyModule, index1: int, index2: int):
 @index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
 @cloup.argument("request", help="Source request URL/hostname.")
 def test(proxy: ProxyModule, request: str):
-    request = ProxySource.parse(request)
-    if not request:
+    address = ProxyAddress.parse(request)
+    if not address:
         error(f"Couldn't parse request URL: {request}")
         return
-    if not request.host or request.host == ".*":
+    if not address.host:
         error("Request host name missing")
         return
 
-    if request.port and request.port not in proxy.ports:
-        warning(f"Request port {request.port} is not configured as a proxy listen port")
-    if request.protocol == ProxyProtocol.ANY:
-        warning("Request protocol not specified, assuming HTTP")
-        request.protocol = ProxyProtocol.HTTP
+    if address.port and address.port not in proxy.ports:
+        warning(f"Request port {address.port} is not configured as a proxy listen port")
+    if not address.protocol:
+        warning("Request protocol not specified, assuming TCP")
+        address.protocol = ProxyProtocol.TCP
 
-    if request.path and request.protocol != ProxyProtocol.HTTP:
-        if request.protocol != ProxyProtocol.ANY:
-            error("Request path can only be used for HTTP")
-            return
-        request.protocol = ProxyProtocol.HTTP
+    if not address.port:
+        if address.protocol == ProxyProtocol.TCP:
+            address.port = 80
+        elif address.protocol == ProxyProtocol.TLS:
+            address.port = 443
 
-    if not request.port:
-        if request.protocol == ProxyProtocol.HTTP:
-            request.port = 80
-        elif request.protocol == ProxyProtocol.TLS:
-            request.port = 443
-        else:
-            error("Request port is required for raw TCP")
-            return
-
-    info(f"Source: {request}")
-    target = proxy.resolve_target(request, None)
-    info(f"Target: {target}")
+    info(f"Request: {address}")
+    # noinspection bad-argument-type
+    target = proxy.resolve_target(ProxySocket(address, io=None))
+    info(f"Rewrite: {target}")
 
 
 class CommandModule(BaseCommandModule):
@@ -298,23 +296,11 @@ class CommandModule(BaseCommandModule):
     def _config_get_proxy_db(proxy: ProxyModule) -> Generator[dict, None, None]:
         for idx, item in enumerate(proxy.proxy_db):
             if isinstance(item, tuple):
-                source: ProxySource = item[0]
-                target: ProxyTarget = item[1]
+                pattern: ProxyAddress = item[0]
+                rewrite: ProxyAddress = item[1]
                 yield dict(
-                    source=dict(
-                        host=source.host,
-                        port=source.port,
-                        path=source.path,
-                        protocol=source.protocol.name,
-                    ),
-                    target=dict(
-                        host=target.host,
-                        port=target.port,
-                        path=target.path,
-                        http_proxy=target.http_proxy
-                        and f"{target.http_proxy[0]}:{target.http_proxy[1]}"
-                        or None,
-                    ),
+                    pattern=pattern.dump(),
+                    rewrite=rewrite.dump(),
                 )
             elif isinstance(item, FunctionType):
                 # for now, ignore handlers since they aren't added via CLI
@@ -343,8 +329,8 @@ class CommandModule(BaseCommandModule):
                 dict(
                     address=proxy.address,
                     ports=[
-                        dict(port=port, protocol=protocol.name)
-                        for port, protocol in sorted(proxy.ports.items())
+                        dict(port=port, mode=mode.name)
+                        for port, mode in sorted(proxy.ports.items())
                     ],
                     proxy_db=list(self._config_get_proxy_db(proxy)),
                 )
@@ -362,27 +348,30 @@ class CommandModule(BaseCommandModule):
                 yield f"proxy listen{index} {item['address']}"
             if item.get("ports"):
                 for record in item["ports"]:
-                    yield f"proxy port{index} {record['port']} {record['protocol']}"
+                    if "protocol" in record:
+                        record["mode"] = dict(
+                            ANY="DETECT", RAW="TCP", TLS="HTTPS", HTTP="HTTP"
+                        )[record["protocol"]]
+                    yield f"proxy port{index} {record['port']} {record['mode']}"
             if item.get("proxy_db"):
                 yield f"proxy clear{index}"
                 for record in item["proxy_db"]:
-                    source = record["source"]
-                    target = record["target"]
-                    source_url = source["host"] or ".*"
-                    target_url = target["host"] or ".*"
-                    if source.get("port"):
-                        source_url += f":{source['port']}"
-                    if target.get("port"):
-                        target_url += f":{target['port']}"
-                    if source.get("path"):
-                        source_url += source["path"]
-                    if target.get("path"):
-                        target_url += target["path"]
-                    if source.get("protocol", "ANY") != "ANY":
-                        source_url = source["protocol"].lower() + "://" + source_url
+                    if "source" in record:
+                        pattern = record["source"]
+                        if pattern["protocol"] == "ANY":
+                            pattern["protocol"] = None
+                    else:
+                        pattern = record["pattern"]
+                    if "target" in record:
+                        rewrite = record["target"]
+                        rewrite["via"] = rewrite.get("http_proxy")
+                    else:
+                        rewrite = record["rewrite"]
+                    pattern_str = ProxyAddress.load(pattern)
+                    rewrite_str = ProxyAddress.load(rewrite)
                     yield (
-                        f'proxy set{index} "{source_url}" "{target_url}"'
-                        f" {target['http_proxy'] or ''}"
+                        f'proxy set{index} "{pattern_str}" "{rewrite_str}"'
+                        f" {rewrite.get('via') or ''}"
                     )
 
 
