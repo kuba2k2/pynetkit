@@ -4,7 +4,7 @@ import socketserver
 from socket import socket
 from socketserver import BaseRequestHandler
 
-from pynetkit.util.socketio import SocketIO
+from pynetkit.util.socketio import PeekingIO, SocketIO
 
 from .module import HTTP_METHODS, ProxyModule
 from .structs import TlsExtension, TlsHandshake, TlsHandshakeHello, TlsRecord
@@ -34,6 +34,19 @@ class ProxyHandler(BaseRequestHandler):
         except Exception as e:
             # handle request exceptions here
             self.proxy.exception(f"Proxy handler raised exception", exc_info=e)
+
+    @staticmethod
+    def read_until(sock, sep: bytes) -> bytes:
+        data = b""
+        while True:
+            recv = sock.read(1)
+            if len(recv) == 0:
+                raise ConnectionResetError("Socket closed")
+            data += recv
+            if sep not in data:
+                continue
+            data, _, _ = data.partition(sep)
+            return data + sep
 
     def fill_address(self, sock: ProxySocket) -> None:
         match self.mode:
@@ -70,9 +83,8 @@ class ProxyHandler(BaseRequestHandler):
                     else:
                         return
 
-                # read the entire request header and put it back
-                request = sock.io.read_until(b"\r\n\r\n")
-                sock.io.poke(request)
+                # peek the entire request header
+                request = self.read_until(PeekingIO(sock.io), b"\r\n\r\n")
 
                 lines = request.splitlines()
                 http_method, _, http_path = lines[0].partition(b" ")
@@ -95,10 +107,8 @@ class ProxyHandler(BaseRequestHandler):
                     sock.address.path = path_str
 
             case ProxyProtocol.TLS:
-                # read the TLS handshake and put it back
-                # noinspection bad-argument-type
-                rec = TlsRecord.unpack(sock.io)
-                sock.io.poke(rec.pack())
+                # peek the TLS handshake
+                rec = TlsRecord.unpack(PeekingIO(sock.io))
 
                 handshake: TlsHandshake = rec.data
                 hello: TlsHandshakeHello = handshake.data
