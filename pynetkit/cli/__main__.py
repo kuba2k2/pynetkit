@@ -28,6 +28,12 @@ VERBOSITY_LEVEL = {
     context_settings=dict(help_option_names=["-h", "--help"]),
 )
 @click.option(
+    "-c",
+    "--config",
+    help="Load config file automatically",
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option(
     "-v",
     "--verbose",
     help="Output debugging messages (repeat to output more)",
@@ -64,6 +70,7 @@ VERBOSITY_LEVEL = {
     is_flag=True,
 )
 def cli_entrypoint(
+    config: str | None,
     verbose: int,
     traceback: bool,
     timed: bool,
@@ -89,11 +96,11 @@ def cli_entrypoint(
     if sys.stdout.isatty() and not simple:
         from .cli_curses import cli_curses
 
-        cli_curses()
+        cli_curses(config)
     else:
         from .cli_simple import cli_simple
 
-        cli_simple()
+        cli_simple(config)
 
 
 def cli():
