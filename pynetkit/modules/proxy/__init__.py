@@ -4,12 +4,14 @@ from .events import ProxyEvent
 from .module import ProxyModule
 from .types.address import ProxyAddress
 from .types.enums import ProxyPortMode, ProxyProtocol
+from .types.http import ProxyHttpRequest
 from .types.socket import ProxySocket
 
 __all__ = [
     "ProxyModule",
     "ProxyAddress",
     "ProxyEvent",
+    "ProxyHttpRequest",
     "ProxyPortMode",
     "ProxyProtocol",
     "ProxySocket",

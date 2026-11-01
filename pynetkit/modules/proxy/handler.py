@@ -13,6 +13,7 @@ from .module import HTTP_METHODS, ProxyModule
 from .structs import TlsExtension, TlsHandshake, TlsHandshakeHello, TlsRecord
 from .types.address import ProxyAddress
 from .types.enums import ProxyPortMode, ProxyProtocol
+from .types.http import ProxyHttpRequest
 from .types.socket import ProxySocket
 
 
@@ -80,21 +81,15 @@ class ProxyHandler(BaseRequestHandler):
                         return
 
                 # peek the entire request header
-                request = SocketIO.read_until(PeekingIO(sock.io), b"\r\n\r\n")
-
-                lines = request.splitlines()
-                http_method, _, http_path = lines[0].partition(b" ")
-                http_path, _, http_ver = http_path.partition(b" ")
-                http_headers = {
-                    k.strip().lower(): v.strip().lower()
-                    for k, _, v in [line.partition(b": ") for line in lines[1:]]
-                    if k
-                }
-                http_host, _, http_port = http_headers.get(b"host", b"").partition(b":")
+                http = ProxyHttpRequest.read(sock=PeekingIO(sock.io))
+                http_host, _, http_port = http.header(
+                    key=b"host",
+                    default=b"",
+                ).partition(b":")
 
                 host_str = http_host.decode("utf-8", errors="ignore").strip()
                 port_str = http_port.decode("utf-8", errors="ignore").strip()
-                path_str = http_path.decode("utf-8", errors="ignore").strip()
+                path_str = http.path.decode("utf-8", errors="ignore").strip()
                 if host_str:
                     sock.address.host = host_str
                 if port_str.isnumeric():
