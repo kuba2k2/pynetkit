@@ -1,5 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
+import select
 import socketserver
 from ipaddress import IPv4Address
 from socket import AF_INET, SOCK_STREAM, socket
@@ -185,6 +186,52 @@ class ProxyHandler(BaseRequestHandler):
             self.client.protocol == self.server.protocol
         ), f"Client and server protocols differ: {self.client.protocol} != {self.server.protocol}"
 
+        running = True
+        client_io = self.client.io
+        server_io = self.server.io
+        while running:
+            # no need for select() if SocketIO already has some pending data
+            if client_io.pending():
+                rsocks = [client_io]
+            elif server_io.pending():
+                rsocks = [server_io]
+            else:
+                # do a timed wait if no data is ready yet
+                # noinspection bad-argument-type
+                rsocks, _, xsocks = select.select(
+                    [client_io, server_io],
+                    [client_io, server_io],
+                    [client_io, server_io],
+                    2.0,
+                )
+                if xsocks:
+                    self.proxy.warning(f"Socket exception, closing")
+                    break
+
+            for rsock in rsocks:
+                wsock = client_io if rsock == server_io else server_io
+                try:
+                    data = rsock.recv(4096)
+                except ConnectionError as e:
+                    self.proxy.warning(f"Proxy read error: {e}")
+                    running = False
+                    break
+                if len(data) == 0:
+                    # select() returned a read socket, but recv() returned 0
+                    # socket is closed
+                    running = False
+                    break
+                try:
+                    wsock.sendall(data)
+                except ConnectionError as e:
+                    self.proxy.warning(f"Proxy write error: {e}")
+                    running = False
+                    break
+
     def finish(self) -> None:
         self.client.io.close()
+        if self.client.parent:
+            self.client.parent.io.close()
         self.server.io.close()
+        if self.server.parent:
+            self.server.parent.io.close()
