@@ -1,11 +1,13 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-8.
 
 import socketserver
-from socket import socket
+from ipaddress import IPv4Address
+from socket import AF_INET, SOCK_STREAM, socket
 from socketserver import BaseRequestHandler
 
 from pynetkit.util.socketio import PeekingIO, SocketIO
 
+from .events import ProxyEvent
 from .module import HTTP_METHODS, ProxyModule
 from .structs import TlsExtension, TlsHandshake, TlsHandshakeHello, TlsRecord
 from .types.address import ProxyAddress
@@ -14,6 +16,9 @@ from .types.socket import ProxySocket
 
 
 class ProxyHandler(BaseRequestHandler):
+    client: ProxySocket
+    server: ProxySocket
+
     def __init__(
         self,
         request: socket,
@@ -26,29 +31,17 @@ class ProxyHandler(BaseRequestHandler):
         self.proxy = proxy
         self.port = port
         self.mode = mode
+        self.proxy.debug(f"Connection opened - {client_address}")
         try:
-            self.proxy.debug(f"Connection opened - {request.getsockname()}")
             super().__init__(request, client_address, server)
         except ConnectionResetError:
-            self.proxy.debug(f"Connection closed - {self.request.getsockname()}")
+            pass
         except Exception as e:
             # handle request exceptions here
             self.proxy.exception(f"Proxy handler raised exception", exc_info=e)
+        self.proxy.debug(f"Connection closed - {client_address}")
 
-    @staticmethod
-    def read_until(sock, sep: bytes) -> bytes:
-        data = b""
-        while True:
-            recv = sock.read(1)
-            if len(recv) == 0:
-                raise ConnectionResetError("Socket closed")
-            data += recv
-            if sep not in data:
-                continue
-            data, _, _ = data.partition(sep)
-            return data + sep
-
-    def fill_address(self, sock: ProxySocket) -> None:
+    def fill_protocol(self, sock: ProxySocket) -> None:
         match self.mode:
             case ProxyPortMode.DETECT:
                 peek = sock.io.peek(6)
@@ -67,8 +60,10 @@ class ProxyHandler(BaseRequestHandler):
         if sock.address.protocol is None:
             sock.address.protocol = protocol
         sock.protocol = protocol
+        self.proxy.verbose(f"Found protocol: {protocol.name}")
 
-        match protocol:
+    def fill_address(self, sock: ProxySocket) -> None:
+        match sock.protocol:
             case ProxyProtocol.TCP if self.mode in (
                 ProxyPortMode.DETECT,
                 ProxyPortMode.HTTP,
@@ -84,7 +79,7 @@ class ProxyHandler(BaseRequestHandler):
                         return
 
                 # peek the entire request header
-                request = self.read_until(PeekingIO(sock.io), b"\r\n\r\n")
+                request = SocketIO.read_until(PeekingIO(sock.io), b"\r\n\r\n")
 
                 lines = request.splitlines()
                 http_method, _, http_path = lines[0].partition(b" ")
@@ -123,17 +118,73 @@ class ProxyHandler(BaseRequestHandler):
                     )
                     break
 
-        self.proxy.verbose(f"Found protocol: {protocol.name}, address: {sock.address}")
+        self.proxy.verbose(f"Found address: {sock.address}")
 
-    def handle(self) -> None:
-        client = ProxySocket(
+    def setup(self) -> None:
+        self.client = ProxySocket(
             address=ProxyAddress(port=self.port),
             io=SocketIO(self.request),
         )
+        self.server = ProxySocket(
+            address=ProxyAddress(port=self.port),
+            io=SocketIO(socket(AF_INET, SOCK_STREAM)),
+        )
 
+    def handle(self) -> None:
         # detect if socket is TCP or TLS, based on the port matching mode
+        self.fill_protocol(self.client)
         # try to read address fields if possible (plaintext HTTP or TLS w/ SNI)
-        self.fill_address(client)
+        self.fill_address(self.client)
 
-        target = self.proxy.resolve_target(client)
-        self.proxy.debug(f"Proxy {client.address} -> {target}")
+        # resolve configured target address
+        self.server.address = self.proxy.resolve_target(self.client)
+        self.server.protocol = self.server.address.protocol or self.server.protocol
+
+        # check if:
+        # - source host/port is the same as target host/port (no rewrite was performed)
+        # - target port is a listening port of this proxy
+        # - target host is a local address that (likely) points to this proxy
+        # in this case, the proxy would just request itself recursively - stop it before it's too late
+        if (
+            self.client.address.host_port == self.server.address.host_port
+            and self.server.address.port in self.proxy.ports
+            and self.server.address.host in self.proxy.get_local_addresses()
+        ):
+            self.proxy.warning(
+                "Target address and port resolved to self! Bailing out..."
+            )
+            return
+
+        # connect to the target server
+        self.server.connect()
+
+        # broadcast an event with details about what's happening
+        client_name = self.client.io.getpeername()
+        server_name = self.server.io.getpeername()
+        ProxyEvent(
+            client=(IPv4Address(client_name[0]), client_name[1]),
+            source=self.client.address,
+            target=self.server.address,
+            protocol=self.client.protocol,
+            server=(IPv4Address(server_name[0]), server_name[1]),
+        ).broadcast()
+
+        match (self.client.protocol, self.server.protocol):
+            case (ProxyProtocol.TLS, ProxyProtocol.TCP):
+                self.proxy.error(
+                    f"Cannot proxy TLS->TCP on {self.client.address}: make sure MITM "
+                    f"mode is enabled and a certificate (or CA) is assigned"
+                )
+                return
+
+            case (ProxyProtocol.TCP, ProxyProtocol.TLS):
+                self.proxy.error("SSL mode not available yet")
+                return
+
+        assert (
+            self.client.protocol == self.server.protocol
+        ), f"Client and server protocols differ: {self.client.protocol} != {self.server.protocol}"
+
+    def finish(self) -> None:
+        self.client.io.close()
+        self.server.io.close()

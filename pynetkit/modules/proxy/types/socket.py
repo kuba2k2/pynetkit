@@ -14,11 +14,28 @@ from .enums import ProxyProtocol
 class ProxySocket:
     address: ProxyAddress
     io: SocketIO
+    protocol: ProxyProtocol = ProxyProtocol.TCP
     parent: "ProxySocket | None" = None
-    protocol: ProxyProtocol | None = None
 
     def __post_init__(self) -> None:
-        self.protocol = self.address.protocol
+        if self.address.protocol:
+            self.protocol = self.address.protocol
+
+    def connect(self) -> None:
+        match self.address.via:
+            case None:
+                self.io.connect(self.address.host_port)
+
+            case http_proxy:
+                self.io.connect(http_proxy)
+                connect = f"CONNECT {self.address.host}:{self.address.port} HTTP/1.1"
+                self.io.sendall(f"{connect}\r\n\r\n".encode())
+                data = SocketIO.read_until(self.io, b"\r\n\r\n")
+                status = data.partition(b"\r\n")[0]
+                if b"200" not in status:
+                    raise ConnectionError(
+                        f"Couldn't connect to HTTP(s) proxy: {status}"
+                    )
 
     def matches(self, pattern: ProxyAddress) -> bool:
         address = self.address

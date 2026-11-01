@@ -67,7 +67,16 @@ def event_log_print(e: BaseEvent):
             from pynetkit.modules.proxy import ProxyEvent
 
             e: ProxyEvent
-            mce(f"§2Proxy§f: §1{e.address}§f - §5{e.source}§f -> §d{e.target}§r")
+            if e.source.protocol != e.protocol:
+                mode = f"-> MITM ({e.protocol.name}) ->"
+            else:
+                mode = "->"
+            mce(
+                f"§2Proxy§f: "
+                f"§1{e.client[0]}:{e.client[1]}§f - "
+                f"§5{e.source}§f {mode} §d{e.target}§f "
+                f"(§d{e.server[0]}:{e.server[1]}§f)§r"
+            )
 
         case "WifiConnectedEvent":
             from pynetkit.modules.wifi import WifiConnectedEvent

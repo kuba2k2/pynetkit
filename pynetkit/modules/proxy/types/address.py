@@ -24,6 +24,10 @@ class ProxyAddress:
             self.host, _, port = self.host.rpartition(":")
             self.port = int(port)
 
+    @property
+    def host_port(self) -> tuple[str | None, int | None]:
+        return self.host, self.port
+
     def dump(self) -> dict:
         out = dict(
             protocol=self.protocol.name if self.protocol else None,

@@ -45,6 +45,19 @@ class SocketIO:
             self.s.pending() if isinstance(self.s, SSLSocket) else 0
         )
 
+    @staticmethod
+    def read_until(sock, sep: bytes) -> bytes:
+        data = b""
+        while True:
+            recv = sock.read(1)
+            if len(recv) == 0:
+                raise ConnectionResetError("Socket closed")
+            data += recv
+            if sep not in data:
+                continue
+            data, _, _ = data.partition(sep)
+            return data + sep
+
 
 class PeekingIO(BinaryIO):
     def __init__(self, io: SocketIO) -> None:
