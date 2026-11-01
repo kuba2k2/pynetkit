@@ -1,5 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2026-10-26.
 
+import select
 from socket import MSG_PEEK, socket
 from ssl import SSLSocket
 from typing import BinaryIO
@@ -27,6 +28,10 @@ class SocketIO:
                 self.buf = self.buf[n:]
             n -= len(data)
 
+        # if data was read from the peek buffer, return unless there's more in the socket
+        if n and data and not self.pending():
+            return data
+
         if n:
             recv = self.s.recv(n)
             if flags & MSG_PEEK:
@@ -41,9 +46,12 @@ class SocketIO:
         return self.recv(n, MSG_PEEK)
 
     def pending(self) -> int:
-        return len(self.buf) + (
-            self.s.pending() if isinstance(self.s, SSLSocket) else 0
-        )
+        if isinstance(self.s, SSLSocket):
+            return len(self.buf) + self.s.pending()
+        rsocks, _, _ = select.select([self.s], [], [], 0.0)
+        if rsocks:
+            return len(self.buf) + 1
+        return len(self.buf)
 
     @staticmethod
     def read_until(sock, sep: bytes) -> bytes:
