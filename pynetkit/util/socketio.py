@@ -58,6 +58,9 @@ class SocketIO:
             data, _, _ = data.partition(sep)
             return data + sep
 
+    def __str__(self) -> str:
+        return f"SocketIO(s={type(self.s)}, name={self.s.getpeername()})"
+
 
 class PeekingIO(BinaryIO):
     def __init__(self, io: SocketIO) -> None:

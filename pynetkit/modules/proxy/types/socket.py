@@ -92,3 +92,12 @@ class ProxySocket:
             raise ValueError(f"Couldn't determine target hostname for {self.address}")
 
         return address
+
+    def __str__(self) -> str:
+        return (
+            f"ProxySocket("
+            f"address={self.address}, "
+            f"io={self.io}, "
+            f"protocol={self.protocol.name}"
+            f")"
+        )
