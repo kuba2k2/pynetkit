@@ -37,7 +37,7 @@ class ProxyHandler(BaseRequestHandler):
         try:
             super().__init__(request, client_address, server)
         except ConnectionResetError:
-            pass
+            self.proxy.warning(f"Connection reset - {client_address}")
         except Exception as e:
             # handle request exceptions here
             self.proxy.exception(f"Proxy handler raised exception", exc_info=e)

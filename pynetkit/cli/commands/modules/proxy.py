@@ -139,20 +139,28 @@ def listen(proxy: ProxyModule, address: IPv4Address):
     mce(f"§fListen address set to: §d{proxy.address}§r")
 
 
-@cloup.command(help="Set protocol association for the given port number.", name="port")
+@cloup.command(
+    help="Set/remove protocol association for the given port number.",
+    name="port",
+)
 @index_option(cls=ProxyModule, items=PROXY, name="proxy", title="proxy server")
 @cloup.argument("port", type=int, help="Listen port number.")
 @cloup.argument(
     "mode",
-    type=Choice([m.name for m in ProxyPortMode], case_sensitive=False),
-    help="Port matching mode (DETECT/TCP/TLS/HTTP/HTTPS).",
+    type=Choice([m.name for m in ProxyPortMode] + ["none"], case_sensitive=False),
+    help="Port matching mode (DETECT/TCP/TLS/HTTP/HTTPS/none).",
 )
 def port_(proxy: ProxyModule, port: int, mode: str):
-    mode = next(m for m in ProxyPortMode if m.name == mode)
     ports = dict(proxy.ports)
-    ports[port] = mode
-    proxy.ports = ports
-    mce(f"§fPort §d{port}§f set with matching mode §d{mode}§r")
+    if mode != "none":
+        mode = next(m for m in ProxyPortMode if m.name == mode)
+        ports[port] = mode
+        proxy.ports = ports
+        mce(f"§fPort §d{port}§f set with matching mode §d{mode}§r")
+    else:
+        ports.pop(port, None)
+        proxy.ports = ports
+        mce(f"§fPort §d{port}§f assignment removed")
 
 
 @cloup.command(help="Set a proxy target for the given source.", name="set")
