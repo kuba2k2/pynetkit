@@ -37,6 +37,9 @@ class ProxySocket:
 
             case (ProxyExternalProtocol.HTTP, host, port):
                 self.io.connect((host, port))
+                if self.address.protocol == ProxyProtocol.TCP:
+                    # HTTP proxies might only allow 'CONNECT' for TLS
+                    return
                 connect = f"CONNECT {target_host}:{target_port} HTTP/1.1"
                 self.io.sendall(f"{connect}\r\n\r\n".encode())
                 data = SocketIO.read_until(self.io, b"\r\n\r\n")

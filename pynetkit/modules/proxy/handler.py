@@ -12,7 +12,7 @@ from .events import ProxyEvent, ProxyHttpEvent
 from .module import HTTP_METHODS, ProxyModule
 from .structs import TlsExtension, TlsHandshake, TlsHandshakeHello, TlsRecord
 from .types.address import ProxyAddress
-from .types.enums import ProxyPortMode, ProxyProtocol
+from .types.enums import ProxyExternalProtocol, ProxyPortMode, ProxyProtocol
 from .types.http import ProxyHttpRequest
 from .types.socket import ProxySocket
 
@@ -205,6 +205,15 @@ class ProxyHandler(BaseRequestHandler):
                 if self.server.address.port != default_port:
                     host = f"{host}:{self.server.address.port or 80}"
                 http_out = http_out.with_header(b"Host", host)
+
+            # include 'Host:' in request line if using plain HTTP with an external proxy
+            if (
+                self.server.address.via
+                and self.server.address.via[0] == ProxyExternalProtocol.HTTP
+                and self.server.address.protocol == ProxyProtocol.TCP
+            ):
+                host = http_out.header(b"Host", default=b"")
+                http_out = http_out.with_path(b"http://" + host + http_out.path)
 
             # broadcast an event for the HTTP request
             ProxyHttpEvent(
