@@ -1,6 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2026-10-28.
 
 import re
+import struct
 from dataclasses import dataclass
 
 from pynetkit.util.misc import matches
@@ -26,13 +27,17 @@ class ProxySocket:
         return self.protocol == ProxyProtocol.TCP and self.address.path is not None
 
     def connect(self) -> None:
+        target_host, target_port = self.address.host_port
+        if not target_host or not target_port:
+            raise ValueError(f"Missing target host/port: {target_host}:{target_port}")
+
         match self.address.via:
             case None:
-                self.io.connect(self.address.host_port)
+                self.io.connect((target_host, target_port))
 
             case (ProxyExternalProtocol.HTTP, host, port):
                 self.io.connect((host, port))
-                connect = f"CONNECT {self.address.host}:{self.address.port} HTTP/1.1"
+                connect = f"CONNECT {target_host}:{target_port} HTTP/1.1"
                 self.io.sendall(f"{connect}\r\n\r\n".encode())
                 data = SocketIO.read_until(self.io, b"\r\n\r\n")
                 status = data.partition(b"\r\n")[0]
@@ -40,6 +45,60 @@ class ProxySocket:
                     raise ConnectionError(
                         f"Couldn't connect to HTTP(s) proxy: {status}"
                     )
+
+            case (ProxyExternalProtocol.SOCKS4, host, port):
+                self.io.connect((host, port))
+                request = struct.pack(
+                    "!BBHI1s",
+                    0x04,  # VER
+                    0x01,  # CMD
+                    target_port,  # DSTPORT
+                    0xFF,  # DESTIP
+                    b"\x00",  # ID
+                )
+                host = target_host.encode("ascii")
+                request += host + b"\x00"
+                self.io.sendall(request)
+                response = self.io.recv(8)
+                if response[1] != 0x5A:
+                    raise ConnectionError(
+                        f"Invalid SOCKS4 response: {response.hex(' ')}"
+                    )
+
+            case (ProxyExternalProtocol.SOCKS5, host, port):
+                self.io.connect((host, port))
+                request = struct.pack(
+                    "!BBB",
+                    0x05,  # VER
+                    0x01,  # NAUTH
+                    0x00,  # AUTH (No authentication)
+                )
+                self.io.sendall(request)
+                response = self.io.recv(2)
+                if response != b"\x05\x00":  # VER, CAUTH
+                    raise ConnectionError(
+                        f"Invalid SOCKS5 server choice: {response.hex(' ')}"
+                    )
+                request = b"\x04\x01\x00"  # VER, CMD, RSV
+                request += b"\x03"  # TYPE (Domain name)
+                request += len(target_host).to_bytes(1, "big")
+                request += target_host.encode("ascii")
+                request += target_port.to_bytes(2, "big")
+                self.io.sendall(request)
+                response = self.io.recv(4)
+                if response[0:3] != b"\x05\x00\x00":  # VER, STATUS, RSV
+                    raise ConnectionError(
+                        f"Invalid SOCKS5 response: {response.hex(' ')}"
+                    )
+                # drop response packet
+                if response[3] == 0x01:
+                    self.io.recv(4)
+                elif response[3] == 0x03:
+                    name_len = self.io.recv(1)[0]
+                    self.io.recv(name_len)
+                elif response[3] == 0x04:
+                    self.io.recv(16)
+                self.io.recv(2)
 
             case (protocol, _, _):
                 raise ValueError(f"Unsupported proxy protocol: {protocol}")
