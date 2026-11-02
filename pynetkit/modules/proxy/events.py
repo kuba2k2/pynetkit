@@ -7,6 +7,7 @@ from pynetkit.modules.base import BaseEvent
 
 from .types.address import ProxyAddress
 from .types.enums import ProxyProtocol
+from .types.http import ProxyHttpRequest
 
 
 @dataclass
@@ -16,3 +17,11 @@ class ProxyEvent(BaseEvent):
     target: ProxyAddress
     server: tuple[IPv4Address, int]
     protocol: ProxyProtocol
+
+
+@dataclass
+class ProxyHttpEvent(BaseEvent):
+    client: tuple[IPv4Address, int]
+    incoming: ProxyHttpRequest
+    outgoing: ProxyHttpRequest
+    server: tuple[IPv4Address, int]

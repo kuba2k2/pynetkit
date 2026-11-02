@@ -8,7 +8,7 @@ from socketserver import BaseRequestHandler
 
 from pynetkit.util.socketio import PeekingIO, SocketIO
 
-from .events import ProxyEvent
+from .events import ProxyEvent, ProxyHttpEvent
 from .module import HTTP_METHODS, ProxyModule
 from .structs import TlsExtension, TlsHandshake, TlsHandshakeHello, TlsRecord
 from .types.address import ProxyAddress
@@ -205,6 +205,14 @@ class ProxyHandler(BaseRequestHandler):
                 if self.server.address.port != default_port:
                     host = f"{host}:{self.server.address.port or 80}"
                 http_out = http_out.with_header(b"Host", host)
+
+            # broadcast an event for the HTTP request
+            ProxyHttpEvent(
+                client=(IPv4Address(client_name[0]), client_name[1]),
+                incoming=http_in,
+                outgoing=http_out,
+                server=(IPv4Address(server_name[0]), server_name[1]),
+            ).broadcast()
 
             # send to the server
             self.server.io.sendall(http_out.raw)

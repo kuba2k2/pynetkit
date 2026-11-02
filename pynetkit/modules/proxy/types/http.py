@@ -77,3 +77,9 @@ class ProxyHttpRequest:
             ver=self.ver,
             headers=headers,
         )
+
+    def __str__(self) -> str:
+        if self.path.startswith(b"http"):
+            return (self.method + b" " + self.path).decode("utf-8", errors="ignore")
+        host = self.header(b"host", default=b"")
+        return (self.method + b" " + host + self.path).decode("utf-8", errors="ignore")

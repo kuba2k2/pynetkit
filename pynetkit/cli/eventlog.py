@@ -78,6 +78,17 @@ def event_log_print(e: BaseEvent):
                 f"(§d{e.server[0]}:{e.server[1]}§f)§r"
             )
 
+        case "ProxyHttpEvent":
+            from pynetkit.modules.proxy import ProxyHttpEvent
+
+            e: ProxyHttpEvent
+            mce(
+                f"§2Proxy§f: "
+                f"§1{e.client[0]}:{e.client[1]}§f - "
+                f"§5{e.incoming}§f -> §d{e.outgoing}§f "
+                f"(§d{e.server[0]}:{e.server[1]}§f)§r"
+            )
+
         case "WifiConnectedEvent":
             from pynetkit.modules.wifi import WifiConnectedEvent
 
