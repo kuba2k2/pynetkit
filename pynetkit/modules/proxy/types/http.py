@@ -34,7 +34,9 @@ class ProxyHttpRequest:
             return cur_v
         return default
 
-    def with_path(self, path: bytes) -> "ProxyHttpRequest":
+    def with_path(self, path: bytes | str) -> "ProxyHttpRequest":
+        if isinstance(path, str):
+            path = path.encode("utf-8")
         old = self.method + b" " + self.path
         new = self.method + b" " + path
         return ProxyHttpRequest(
@@ -45,8 +47,10 @@ class ProxyHttpRequest:
             headers=dict(self.headers),
         )
 
-    def with_header(self, key: bytes, value: bytes) -> "ProxyHttpRequest":
+    def with_header(self, key: bytes, value: bytes | str) -> "ProxyHttpRequest":
         key = key.lower()
+        if isinstance(value, str):
+            value = value.encode("utf-8")
         for cur_k, cur_v in self.headers.items():
             if cur_k.lower() != key:
                 continue

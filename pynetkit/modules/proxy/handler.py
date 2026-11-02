@@ -181,6 +181,34 @@ class ProxyHandler(BaseRequestHandler):
             self.client.protocol == self.server.protocol
         ), f"Client and server protocols differ: {self.client.protocol} != {self.server.protocol}"
 
+        # if the client speaks plaintext (or decrypted) HTTP, patch the request headers
+        if self.client.is_http:
+            http_out = http_in = ProxyHttpRequest.read(self.client.io)
+
+            # set 'Connection: close' to route all requests via proxy
+            http_out = http_out.with_header(b"Connection", b"close")
+
+            # find implicit port number
+            default_port = {
+                None: self.server.address.port,
+                ProxyProtocol.TCP: 80,
+                ProxyProtocol.TLS: 443,
+            }[self.server.address.protocol]
+
+            # patch request line if necessary
+            if self.client.address.path != self.server.address.path:
+                http_out = http_out.with_path(self.server.address.path or "")
+
+            # change 'Host:' header if necessary
+            if self.client.address.host_port != self.server.address.host_port:
+                host = self.server.address.host or ""
+                if self.server.address.port != default_port:
+                    host = f"{host}:{self.server.address.port or 80}"
+                http_out = http_out.with_header(b"Host", host)
+
+            # send to the server
+            self.server.io.sendall(http_out.raw)
+
         running = True
         client_io = self.client.io
         server_io = self.server.io
@@ -195,7 +223,7 @@ class ProxyHandler(BaseRequestHandler):
                 # noinspection bad-argument-type
                 rsocks, _, xsocks = select.select(
                     [client_io, server_io],
-                    [client_io, server_io],
+                    [],
                     [client_io, server_io],
                     2.0,
                 )

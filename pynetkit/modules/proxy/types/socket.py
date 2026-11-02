@@ -21,6 +21,10 @@ class ProxySocket:
         if self.address.protocol:
             self.protocol = self.address.protocol
 
+    @property
+    def is_http(self) -> bool:
+        return self.protocol == ProxyProtocol.TCP and self.address.path is not None
+
     def connect(self) -> None:
         match self.address.via:
             case None:

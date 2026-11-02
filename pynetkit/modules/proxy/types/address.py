@@ -44,7 +44,7 @@ class ProxyAddress:
             [
                 data["protocol"].lower() + "://" if data.get("protocol") else "",
                 data["host"] if data.get("host") else "",
-                ":" + data["port"] if data.get("port") else "",
+                f":{data['port']}" if data.get("port") else "",
                 data["path"] if data.get("path") else "",
             ]
         )
