@@ -7,7 +7,7 @@ from pynetkit.util.misc import matches
 from pynetkit.util.socketio import SocketIO
 
 from .address import ProxyAddress
-from .enums import ProxyProtocol
+from .enums import ProxyExternalProtocol, ProxyProtocol
 
 
 @dataclass
@@ -30,8 +30,8 @@ class ProxySocket:
             case None:
                 self.io.connect(self.address.host_port)
 
-            case http_proxy:
-                self.io.connect(http_proxy)
+            case (ProxyExternalProtocol.HTTP, host, port):
+                self.io.connect((host, port))
                 connect = f"CONNECT {self.address.host}:{self.address.port} HTTP/1.1"
                 self.io.sendall(f"{connect}\r\n\r\n".encode())
                 data = SocketIO.read_until(self.io, b"\r\n\r\n")
@@ -40,6 +40,9 @@ class ProxySocket:
                     raise ConnectionError(
                         f"Couldn't connect to HTTP(s) proxy: {status}"
                     )
+
+            case (protocol, _, _):
+                raise ValueError(f"Unsupported proxy protocol: {protocol}")
 
     def matches(self, pattern: ProxyAddress) -> bool:
         address = self.address

@@ -14,3 +14,9 @@ class ProxyPortMode(Enum):
 class ProxyProtocol(Enum):
     TCP = auto()
     TLS = auto()
+
+
+class ProxyExternalProtocol(Enum):
+    HTTP = auto()
+    SOCKS4 = auto()
+    SOCKS5 = auto()

@@ -78,7 +78,7 @@ def cli(ctx: Context, proxy: ProxyModule | None):
                 # print simple records
                 pattern: ProxyAddress = item[0]
                 rewrite: ProxyAddress = item[1]
-                via = f"{rewrite.via[0]}:{rewrite.via[1]}" if rewrite.via else ""
+                via = rewrite.via_url if rewrite.via else ""
                 table.add_row([idx + 1, str(pattern), str(rewrite), via])
             elif isinstance(item, FunctionType):
                 # for now, ignore handlers since they aren't added via CLI
@@ -168,7 +168,7 @@ def port_(proxy: ProxyModule, port: int, mode: str):
 @cloup.argument(
     "via",
     required=False,
-    help="HTTP proxy for the request, optional (host:port).",
+    help="External proxy URL, optional - [proto://]host:port. Supports http, socks4, socks5.",
 )
 def set_(
     proxy: ProxyModule,
@@ -179,19 +179,14 @@ def set_(
     pattern = ProxyAddress.parse(pattern)
     if not pattern:
         error(f"Couldn't parse pattern string")
-    rewrite = ProxyAddress.parse(rewrite)
+    rewrite = ProxyAddress.parse(rewrite, via)
     if not rewrite:
-        error(f"Couldn't parse rewrite string")
+        error(f"Couldn't parse rewrite string or proxy URL")
         return
     if not pattern:
         return
 
-    via_str = ""
-    if via and ":" in via:
-        via_host, _, via_port = via.rpartition(":")
-        via_port = int(via_port)
-        rewrite.via = via_host, via_port
-        via_str = f" via §d{via_host}:{via_port}§r"
+    via_str = f" via §d{rewrite.via_url}§r" if rewrite.via else ""
 
     # check some known bad usages
     if pattern.port and pattern.port not in proxy.ports:
