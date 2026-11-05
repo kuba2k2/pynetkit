@@ -1,7 +1,11 @@
 #  Copyright (c) Kuba Szczodrzyński 2026-11-2.
 
 from pathlib import Path
+from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric.dsa import DSAPublicKey
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.types import (
     CertificateIssuerPrivateKeyTypes,
 )
@@ -143,19 +147,29 @@ class SslModule(ModuleBase):
         return None
 
     def get_issuer(self, entry: SslStoreEntry) -> SslStoreEntry | None:
-        authority_id = entry.authority_key_id
-        issuer_name = entry.issuer
+        signature = entry.cert.signature
+        data = entry.cert.tbs_certificate_bytes
+        algorithm: Any = entry.cert.signature_hash_algorithm
+        params: Any = entry.cert.signature_algorithm_parameters
 
-        if entry.subject == issuer_name or entry.subject_key_id == authority_id:
-            # most likely self-signed
-            return entry
-
+        # there's 'verify_directly_issued_by()', but it doesn't work for
+        # self-signed certificates for some reason
         for issuer in self.cert_db:
-            if authority_id and authority_id == issuer.subject_key_id:
+            if entry.cert.issuer != issuer.cert.subject:
+                continue
+            try:
+                match key := issuer.cert.public_key():
+                    case DSAPublicKey():
+                        key.verify(signature, data, algorithm)
+                    case RSAPublicKey():
+                        key.verify(signature, data, params, algorithm)
+                    case EllipticCurvePublicKey():
+                        key.verify(signature, data, params)
+                    case _:
+                        key.verify(signature, data)
                 return issuer
-            # compare names if no authority key ID
-            if not authority_id and issuer_name == issuer.subject:
-                return issuer
+            except:
+                pass
         return None
 
     def find_for_subject(self, name: str) -> SslStoreEntry | None:

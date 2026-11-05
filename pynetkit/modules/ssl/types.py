@@ -10,10 +10,8 @@ from cryptography.hazmat.primitives.asymmetric.types import (
 )
 from cryptography.x509 import Certificate, DNSName, ExtensionNotFound
 from cryptography.x509.extensions import (
-    AuthorityKeyIdentifier,
     BasicConstraints,
     SubjectAlternativeName,
-    SubjectKeyIdentifier,
 )
 
 
@@ -87,22 +85,6 @@ class SslStoreEntry:
             return bc.value.ca
         except ExtensionNotFound:
             return False
-
-    @property
-    def subject_key_id(self) -> bytes | None:
-        try:
-            bc = self.cert.extensions.get_extension_for_class(SubjectKeyIdentifier)
-            return bc.value.digest
-        except ExtensionNotFound:
-            return None
-
-    @property
-    def authority_key_id(self) -> bytes | None:
-        try:
-            bc = self.cert.extensions.get_extension_for_class(AuthorityKeyIdentifier)
-            return bc.value.key_identifier
-        except ExtensionNotFound:
-            return None
 
     _fingerprint: bytes | None = None
 
