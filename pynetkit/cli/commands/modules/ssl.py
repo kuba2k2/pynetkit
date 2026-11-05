@@ -148,6 +148,8 @@ def use(query: str, names: tuple[str], unuse: bool):
 )
 def generate(names: tuple[str]):
     for name in names:
+        if name.startswith("*.") and name[2:] not in names:
+            warning(f"Consider adding wildcard parent ({name[2:]}) to SAN list")
         entry = ssl.find_for_subject(name)
         if entry and entry.key:
             warning(

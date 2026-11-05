@@ -5,7 +5,9 @@ from datetime import datetime
 from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+from cryptography.hazmat.primitives.asymmetric.types import (
+    CertificateIssuerPrivateKeyTypes,
+)
 from cryptography.x509 import Certificate, DNSName, ExtensionNotFound
 from cryptography.x509.extensions import (
     AuthorityKeyIdentifier,
@@ -18,7 +20,7 @@ from cryptography.x509.extensions import (
 @dataclass
 class SslStoreEntry:
     cert: Certificate
-    key: PrivateKeyTypes | None = None
+    key: CertificateIssuerPrivateKeyTypes | None = None
     paths: set[Path] = field(default_factory=set)
     usage: set[str] = field(default_factory=set)
 

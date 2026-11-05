@@ -2,7 +2,10 @@
 
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+from cryptography.hazmat.primitives.asymmetric.types import (
+    CertificateIssuerPrivateKeyTypes,
+)
+from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import Certificate, load_pem_x509_certificates
 
@@ -77,6 +80,7 @@ class SslModule(ModuleBase):
         for path, pem in pem_files:
             try:
                 key = load_pem_private_key(pem, password=None)
+                # noinspection bad-argument-type
                 if self.import_key(key, path):
                     key_count += 1
             except ValueError:
@@ -84,7 +88,11 @@ class SslModule(ModuleBase):
 
         return cert_count, key_count
 
-    def import_certificate(self, cert: Certificate, path: Path | None = None) -> bool:
+    def import_certificate(
+        self,
+        cert: Certificate,
+        path: Path | None = None,
+    ) -> bool:
         entry = SslStoreEntry(cert=cert)
         if entry.fingerprint in [e.fingerprint for e in self.cert_db]:
             return False
@@ -94,7 +102,11 @@ class SslModule(ModuleBase):
         self.sort_db()
         return True
 
-    def import_key(self, key: PrivateKeyTypes, path: Path | None = None) -> bool:
+    def import_key(
+        self,
+        key: CertificateIssuerPrivateKeyTypes,
+        path: Path | None = None,
+    ) -> bool:
         public_key = key.public_key()
         matched, added = False, False
         for entry in self.cert_db:
@@ -110,6 +122,7 @@ class SslModule(ModuleBase):
         if not matched:
             path_str = f" '{path.name}'" if path else ""
             self.warning(f"Private key{path_str} doesn't match any certificates")
+        self.sort_db()
         return added
 
     def get_entry(self, query: str) -> SslStoreEntry | None:
@@ -173,7 +186,14 @@ class SslModule(ModuleBase):
             return None
         ca_cert, ca_key = entry.cert, entry.key
 
-        leaf_cert, leaf_key = ca_cert, ca_key
+        from .certgen import build_certificate, generate_key_pair
+
+        leaf_key = generate_key_pair("")
+        leaf_cert = build_certificate(
+            issuer_cert=ca_cert,
+            subject_key=leaf_key.public_key(),
+            names=names,
+        ).sign(private_key=ca_key, algorithm=SHA256())
 
         if not no_import:
             self.import_certificate(leaf_cert)
