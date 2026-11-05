@@ -14,6 +14,15 @@ def matches(pattern: str | bytes, value: str | bytes) -> bool:
     return bool(re.fullmatch(pattern, value))
 
 
+def matches_wildcard(pattern: str, value: str, sep: str = ".") -> bool:
+    wildcard_map = {
+        "*": f"([^{sep}]+)",
+        "**": "(.+)",
+    }
+    pattern = f"\\{sep}".join(wildcard_map.get(p, p) for p in pattern.split(sep))
+    return matches(pattern, value)
+
+
 def import_module(filename: str) -> dict:
     ns = {}
     fn = Path(__file__).parents[2] / filename

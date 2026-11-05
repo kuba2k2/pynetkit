@@ -1,6 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2026-11-2.
 
-from logging import error
+from logging import error, info, warning
 from pathlib import Path
 
 import click
@@ -94,9 +94,82 @@ def clear():
     mce(f"§fCertificate database cleared (§d{num}§f entries deleted)§r")
 
 
+@cloup.command(help="Use a CA or certificate for given host names.")
+@cloup.argument(
+    "query",
+    type=str,
+    help="Certificate/CA to assign host names to (index, CN or fingerprint).",
+)
+@cloup.argument(
+    "names",
+    type=str,
+    nargs=-1,
+    required=True,
+    help="Domain names (CN) to assign. Wildcard '*' matches one level, '**' matches multiple levels.",
+)
+@cloup.option(
+    "-u",
+    "--unuse",
+    is_flag=True,
+    help="Delete names instead of adding them.",
+)
+def use(query: str, names: tuple[str], unuse: bool):
+    entry = ssl.get_entry(query)
+    if not entry:
+        error(f"Entry not found by the query: {query}")
+        return
+    # add or remove names
+    if not unuse:
+        # run some usage checks
+        if "*" in names:
+            warning("Domain name '*' matches TLD only; use '**' to match any domain.")
+        for name in names:
+            if name.startswith("*.") and name.count(".") > 1 and name[2:] not in names:
+                info(
+                    f"Pattern '{name}' matches subdomain only; "
+                    "add separate one without '*.' to match parent domain."
+                )
+        entry.usage.update(names)
+    else:
+        entry.usage.difference_update(names)
+    mce(
+        f"§fEntry §d{entry.subject_cn}§f modified. "
+        f"New usage: §d{', '.join(entry.usage) or '(none)'}§r"
+    )
+
+
+@cloup.command(help="Generate a temporary certificate for the given domain name.")
+@cloup.argument(
+    "names",
+    type=str,
+    nargs=-1,
+    required=True,
+    help="Domain name(s); uses SAN if multiple specified. Wildcard '*.' accepted.",
+)
+def generate(names: tuple[str]):
+    for name in names:
+        entry = ssl.find_for_subject(name)
+        if entry and entry.key:
+            warning(
+                f"Certificate for '{name}' already exists: "
+                f"{entry.subject_cn}, issued by {entry.issuer_cn}"
+            )
+
+    entry = ssl.generate_for_subject(*names)
+    if not entry:
+        error(f"There is no CA assigned to generate certificates for: {names[0]}")
+        return
+    mce(
+        f"§fGenerated certificate for §d{entry.subject_cn}§f, "
+        f"issued by §d{entry.issuer_cn}§r"
+    )
+    mce(f'§fRun §dssl export "{entry.subject_cn}"§f to make it persist with config§r')
+
+
 class CommandModule(BaseCommandModule):
     CLI = cli
 
 
 cli.section("Certificate management", import_, delete, clear)
+cli.section("Certificate Authority usage", use, generate)
 COMMAND = CommandModule()

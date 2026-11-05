@@ -22,10 +22,12 @@ class SslStoreEntry:
     paths: set[Path] = field(default_factory=set)
     usage: set[str] = field(default_factory=set)
 
-    def copy_usage(self) -> None:
-        if self.is_ca:
-            return
-        self.usage = set(self.subject_names)
+    def __post_init__(self) -> None:
+        if not self.is_ca:
+            for name in self.subject_names:
+                self.usage.add(name)
+                if name.startswith("*."):
+                    self.usage.add(name[2:])
 
     @property
     def subject(self) -> dict[str, str]:

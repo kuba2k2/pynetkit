@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import Certificate, load_pem_x509_certificates
 
 from pynetkit.modules.base import ModuleBase
+from pynetkit.util.misc import matches_wildcard
 
 from .types import SslStoreEntry
 
@@ -18,6 +19,23 @@ class SslModule(ModuleBase):
     def __init__(self):
         super().__init__()
         self.cert_db = []
+
+    def sort_db(self) -> None:
+        def key(e: SslStoreEntry):
+            return (
+                # CA before non-CA
+                not e.is_ca,
+                # chain-only before entries with private keys
+                bool(e.key),
+                # imported/exported entries before temporary/generated ones
+                not bool(e.paths),
+                # specific hosts before wildcards
+                e.subject_cn.startswith("*."),
+                # otherwise subject CN decides order
+                e.subject_cn.lower(),
+            )
+
+        self.cert_db.sort(key=key)
 
     def import_files(self, *paths: Path) -> tuple[int, int]:
         cert_count = 0
@@ -72,15 +90,8 @@ class SslModule(ModuleBase):
             return False
         if path:
             entry.paths.add(path)
-        entry.copy_usage()
         self.cert_db.append(entry)
-        self.cert_db.sort(
-            key=lambda e: (
-                not e.is_ca,
-                bool(e.key),
-                e.subject_cn.lower(),
-            ),
-        )
+        self.sort_db()
         return True
 
     def import_key(self, key: PrivateKeyTypes, path: Path | None = None) -> bool:
@@ -101,6 +112,23 @@ class SslModule(ModuleBase):
             self.warning(f"Private key{path_str} doesn't match any certificates")
         return added
 
+    def get_entry(self, query: str) -> SslStoreEntry | None:
+        if not query:
+            return None
+        # check if query is an index
+        if query.isnumeric():
+            index = int(query)
+            if 1 <= index <= len(self.cert_db):
+                return self.cert_db[index - 1]
+        # convert AA:12:BB:34 to aa12bb34
+        query_hex = query.lower().replace(":", "")
+        for entry in self.cert_db:
+            if entry.subject_cn == query:
+                return entry
+            if entry.fingerprint.hex() == query_hex:
+                return entry
+        return None
+
     def get_issuer(self, entry: SslStoreEntry) -> SslStoreEntry | None:
         authority_id = entry.authority_key_id
         issuer_name = entry.issuer
@@ -116,3 +144,39 @@ class SslModule(ModuleBase):
             if not authority_id and issuer_name == issuer.subject:
                 return issuer
         return None
+
+    def find_for_subject(self, name: str) -> SslStoreEntry | None:
+        for entry in self.cert_db:
+            if entry.is_ca or not entry.key:
+                continue
+            if any(matches_wildcard(p, name) for p in entry.subject_names):
+                return entry
+        return None
+
+    def generate_for_subject(
+        self,
+        *names: str,
+        no_import: bool = False,
+    ) -> SslStoreEntry | None:
+        # use first name as primary subject CN
+        if not names:
+            return None
+        name = names[0]
+
+        # find a CA that can generate for this subject
+        for entry in self.cert_db:
+            if not entry.is_ca or not entry.key:
+                continue
+            if any(matches_wildcard(p, name) for p in entry.usage):
+                break
+        else:
+            return None
+        ca_cert, ca_key = entry.cert, entry.key
+
+        leaf_cert, leaf_key = ca_cert, ca_key
+
+        if not no_import:
+            self.import_certificate(leaf_cert)
+            self.import_key(leaf_key)
+
+        return SslStoreEntry(leaf_cert, leaf_key)
