@@ -1,5 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2026-11-2.
 
+import re
 from logging import error, info, warning
 from pathlib import Path
 
@@ -74,6 +75,47 @@ def cli(ctx: Context):
 def import_(paths: tuple[Path]):
     cert_count, key_count = ssl.import_files(*paths)
     mce(f"§fImported §d{cert_count}§f certificates and §d{key_count}§f private keys§r")
+
+
+@cloup.command(help="Export certificate chain with keys as PEM.")
+@cloup.argument(
+    "query",
+    type=str,
+    help="Certificate/CA to export (index, CN or fingerprint).",
+)
+@cloup.argument(
+    "path",
+    type=click.Path(writable=True, path_type=Path),
+    required=False,
+    help="Path to output PEM file (defaults to subject CN).",
+)
+def export(query: str, path: Path):
+    entry = ssl.get_entry(query)
+    if not entry:
+        error(f"Entry not found by the query: {query}")
+        return
+
+    if not path:
+        filename = entry.subject_cn.replace("*", "_")
+        filename = re.sub(r"[^0-9A-Za-z-_. ]", "", filename)
+        path = Path(f"{filename}.pem")
+        if path.is_file():
+            error(
+                f"File {path.absolute().resolve()} already exists, "
+                f"please specify a path manually"
+            )
+            return
+
+    ssl.export_chain(entry=entry, path=path)
+    mce(f"§fExported §d{entry.subject_cn}§f as §d{path.absolute().resolve()}§r")
+
+    if not entry.paths:
+        entry.paths.add(path)
+        ssl.sort_db()
+        mce(
+            "§fCertificate was auto-generated and is no longer temporary "
+            "(will restore with the configuration, once saved)§r"
+        )
 
 
 @cloup.command(help="Delete a certificate from the database.")
@@ -172,6 +214,6 @@ class CommandModule(BaseCommandModule):
     CLI = cli
 
 
-cli.section("Certificate management", import_, delete, clear)
+cli.section("Certificate management", import_, export, delete, clear)
 cli.section("Certificate Authority usage", use, generate)
 COMMAND = CommandModule()

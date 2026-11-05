@@ -10,7 +10,12 @@ from cryptography.hazmat.primitives.asymmetric.types import (
     CertificateIssuerPrivateKeyTypes,
 )
 from cryptography.hazmat.primitives.hashes import SHA256
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    load_pem_private_key,
+)
 from cryptography.x509 import Certificate, load_pem_x509_certificates
 
 from pynetkit.modules.base import ModuleBase
@@ -171,6 +176,35 @@ class SslModule(ModuleBase):
             except:
                 pass
         return None
+
+    def export_chain(
+        self,
+        entry: SslStoreEntry,
+        path: Path | None,
+    ) -> list[SslStoreEntry]:
+        # rebuild the chain
+        chain = [entry]
+        while True:
+            issuer = self.get_issuer(chain[-1])
+            if issuer in (chain[-1], None):
+                break
+            chain.append(issuer)
+        if not path:
+            return chain
+
+        # save as PEM
+        with path.open("wb") as f:
+            for i, entry in enumerate(chain):
+                f.write(entry.cert.public_bytes(Encoding.PEM))
+                # private key after 1st certificate, and only for this one
+                if i == 0 and entry.key:
+                    private_bytes = entry.key.private_bytes(
+                        encoding=Encoding.PEM,
+                        format=PrivateFormat.TraditionalOpenSSL,
+                        encryption_algorithm=NoEncryption(),
+                    )
+                    f.write(private_bytes)
+        return chain
 
     def find_for_subject(self, name: str) -> SslStoreEntry | None:
         for entry in self.cert_db:
