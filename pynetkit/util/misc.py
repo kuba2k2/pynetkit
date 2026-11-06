@@ -5,7 +5,7 @@ from datetime import timedelta
 from ipaddress import IPv4Address
 from pathlib import Path
 from socket import AF_INET, IPPROTO_UDP, SOCK_DGRAM, socket
-from typing import Iterable
+from typing import Any, Iterable
 
 import pytimeparse
 
@@ -75,3 +75,10 @@ def parse_timedelta(offset: str) -> timedelta | None:
     if sign == "-":
         delta = -delta
     return delta
+
+
+def ellipsize(s: Any, n: int, end: str = "[...]") -> str:
+    s = str(s)
+    if len(s) < n:
+        return s
+    return s[: n - len(end)] + end

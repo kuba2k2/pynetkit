@@ -3,6 +3,7 @@
 from logging import exception
 
 from pynetkit.modules.base import BaseEvent
+from pynetkit.util.misc import ellipsize
 
 from .util.mce import mce
 
@@ -64,18 +65,32 @@ def event_log_print(e: BaseEvent):
             )
 
         case "ProxyEvent":
+            from ssl import SSLEOFError, SSLError
+
             from pynetkit.modules.proxy import ProxyEvent
 
             e: ProxyEvent
-            if e.source.protocol != e.protocol:
-                mode = f"-> MITM ({e.protocol.name}) ->"
-            else:
-                mode = "->"
+            mitm_err = e.status == ProxyEvent.Status.MITM_ERR
+            server_err = e.status == ProxyEvent.Status.SERVER_ERR
+            no_err = e.status == ProxyEvent.Status.CONNECTED
+            err = str(e.error) if e.error else "unknown error"
+            match e.error:
+                case SSLError():
+                    err = e.error.reason or err
+                case SSLEOFError():
+                    err = "EOF"
+                case ConnectionResetError():
+                    err = "connection reset"
             mce(
                 f"§2Proxy§f: "
                 f"§1{e.client[0]}:{e.client[1]}§f - "
-                f"§5{e.source}§f {mode} §d{e.target}§f "
-                f"(§d{e.server[0]}:{e.server[1]}§f)§r"
+                f"§5{ellipsize(e.source, 50)}§f"
+                + (mitm_err and f" -> §cMITM handshake failed ({err})§f" or "")
+                + (e.mitm and no_err and f" -> §aSSL MITM§f" or "")
+                + (e.target and f" -> §d{ellipsize(e.target, 50)}§f" or "")
+                + (server_err and f" -> §cserver connection failed ({err})§f" or "")
+                + (e.server and f" (§d{e.server[0]}:{e.server[1]}§f)" or "")
+                + "§r"
             )
 
         case "ProxyHttpEvent":
@@ -85,7 +100,7 @@ def event_log_print(e: BaseEvent):
             mce(
                 f"§2Proxy§f: "
                 f"§1{e.client[0]}:{e.client[1]}§f - "
-                f"§5{e.incoming}§f -> §d{e.outgoing}§f "
+                f"§5{ellipsize(e.incoming, 50)}§f -> §d{ellipsize(e.outgoing, 50)}§f "
                 f"(§d{e.server[0]}:{e.server[1]}§f)§r"
             )
 

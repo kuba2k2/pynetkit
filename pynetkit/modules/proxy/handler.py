@@ -7,6 +7,7 @@ from socket import AF_INET, SOCK_STREAM, socket
 from socketserver import BaseRequestHandler
 from ssl import PROTOCOL_TLS_CLIENT, PROTOCOL_TLS_SERVER, SSLContext, VerifyMode
 
+from pynetkit.modules.ssl import SslStoreEntry
 from pynetkit.util.socketio import PeekingIO, SocketIO
 
 from .events import ProxyEvent, ProxyHttpEvent
@@ -21,6 +22,8 @@ from .types.socket import ProxySocket
 class ProxyHandler(BaseRequestHandler):
     client: ProxySocket
     server: ProxySocket
+    client_name: tuple[IPv4Address, int]
+    server_name: tuple[IPv4Address, int]
 
     def __init__(
         self,
@@ -126,6 +129,8 @@ class ProxyHandler(BaseRequestHandler):
             address=ProxyAddress(port=self.port),
             io=SocketIO(socket(AF_INET, SOCK_STREAM)),
         )
+        addr, port = self.client.io.getpeername()
+        self.client_name = (IPv4Address(addr), port)
 
     def handle(self) -> None:
         # detect if socket is TCP or TLS, based on the port matching mode
@@ -134,6 +139,7 @@ class ProxyHandler(BaseRequestHandler):
         self.fill_address(self.client)
 
         # try enabling SSL MITM mode if the module is available
+        ssl_entry: SslStoreEntry | None = None
         if self.client.protocol == ProxyProtocol.TLS and self.proxy.ssl:
             # try proxy IP address first - but don't generate, so if it's found
             # then it was explicitly enabled
@@ -168,16 +174,27 @@ class ProxyHandler(BaseRequestHandler):
                     server_side=True,
                     do_handshake_on_connect=False,
                 )
-                ssl_sock.do_handshake()
-                self.client = ProxySocket(
-                    address=self.client.address,
-                    io=SocketIO(ssl_sock),
-                    parent=self.client,
-                )
-                # set as TCP, as this socket now carries unencrypted traffic
-                self.client.protocol = ProxyProtocol.TCP
-                # fill address fields if protocol is HTTP
-                self.fill_address(self.client)
+                # handshake with the client
+                try:
+                    ssl_sock.do_handshake()
+                    self.client = ProxySocket(
+                        address=self.client.address,
+                        io=SocketIO(ssl_sock),
+                        parent=self.client,
+                    )
+                    # set as TCP, as this socket now carries unencrypted traffic
+                    self.client.protocol = ProxyProtocol.TCP
+                    # fill address fields if protocol is HTTP
+                    self.fill_address(self.client)
+                except Exception as e:
+                    ProxyEvent(
+                        status=ProxyEvent.Status.MITM_ERR,
+                        client=self.client_name,
+                        source=self.client.address,
+                        error=e,
+                        mitm=ssl_entry,
+                    ).broadcast()
+                    return
 
         # resolve configured target address
         self.server.address = self.proxy.resolve_target(self.client)
@@ -199,17 +216,29 @@ class ProxyHandler(BaseRequestHandler):
             return
 
         # connect to the target server
-        self.server.connect()
+        try:
+            self.server.connect()
+            addr, port = self.server.io.getpeername()
+            self.server_name = (IPv4Address(addr), port)
+        except Exception as e:
+            ProxyEvent(
+                status=ProxyEvent.Status.SERVER_ERR,
+                client=self.client_name,
+                source=self.client.address,
+                target=self.server.address,
+                error=e,
+                mitm=ssl_entry,
+            ).broadcast()
+            return
 
         # broadcast an event with details about what's happening
-        client_name = self.client.io.getpeername()
-        server_name = self.server.io.getpeername()
         ProxyEvent(
-            client=(IPv4Address(client_name[0]), client_name[1]),
+            status=ProxyEvent.Status.CONNECTED,
+            client=self.client_name,
             source=self.client.address,
             target=self.server.address,
-            protocol=self.client.protocol,
-            server=(IPv4Address(server_name[0]), server_name[1]),
+            server=self.server_name,
+            mitm=ssl_entry,
         ).broadcast()
 
         match (self.client.protocol, self.server.protocol):
@@ -280,10 +309,10 @@ class ProxyHandler(BaseRequestHandler):
 
             # broadcast an event for the HTTP request
             ProxyHttpEvent(
-                client=(IPv4Address(client_name[0]), client_name[1]),
+                client=self.client_name,
                 incoming=http_in,
                 outgoing=http_out,
-                server=(IPv4Address(server_name[0]), server_name[1]),
+                server=self.server_name,
             ).broadcast()
 
             # send to the server
