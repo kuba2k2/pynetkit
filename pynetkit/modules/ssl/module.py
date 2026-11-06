@@ -49,6 +49,10 @@ class SslModule(ModuleBase):
                 e.subject_cn.startswith("*."),
                 # otherwise subject CN decides order
                 e.subject_cn.lower(),
+                # same CN? perhaps issuer differs
+                e.issuer_cn.lower(),
+                # okay, try fingerprint as last resort
+                e.fingerprint.hex(),
             )
 
         self.cert_db.sort(key=key)

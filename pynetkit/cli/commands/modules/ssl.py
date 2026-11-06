@@ -91,7 +91,7 @@ def import_(paths: tuple[Path]):
     "path",
     type=click.Path(writable=True, path_type=Path),
     required=False,
-    help="Path to output PEM file (defaults to subject CN).",
+    help="Path to output PEM file or directory (defaults to subject+issuer CN).",
 )
 def export(query: str, path: Path):
     entry = ssl.get_entry(query)
@@ -99,10 +99,14 @@ def export(query: str, path: Path):
         error(f"Entry not found by the query: {query}")
         return
 
-    if not path:
-        filename = entry.subject_cn.replace("*", "_")
-        filename = re.sub(r"[^0-9A-Za-z-_. ]", "", filename)
-        path = Path(f"{filename}.pem")
+    if not path or path.is_dir():
+        filename = f"{entry.subject_cn} ({entry.issuer_cn})"
+        filename = filename.replace("*", "_")
+        filename = re.sub(r"[^0-9A-Za-z-_. ()]", "", filename)
+        if path:
+            path = path / f"{filename}.pem"
+        else:
+            path = Path(f"{filename}.pem")
         if path.is_file():
             error(
                 f"File {path.absolute().resolve()} already exists, "
@@ -261,8 +265,8 @@ class CommandModule(BaseCommandModule):
         )
 
     def config_commands(self, config: Config.Module) -> Generator[str, None, None]:
-        for path in config.config.get("paths", []):
-            yield f'ssl import "{path}"'
+        paths = config.config.get("paths", [])
+        yield f"ssl import " + " ".join(f'"{p}"' for p in paths)
         for query, names in config.config.get("use", {}).items():
             if not names:
                 continue
