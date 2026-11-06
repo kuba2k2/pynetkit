@@ -10,6 +10,7 @@ import cloup
 from click import Choice, Context
 from prettytable.colortable import ColorTable, Themes
 
+from pynetkit.cli.command import get_module
 from pynetkit.cli.commands.base import (
     CONTEXT_SETTINGS,
     BaseCommandModule,
@@ -62,6 +63,14 @@ def cli(ctx: Context, proxy: ProxyModule | None):
                 ("", f":{port} ({mode.name})")
                 for port, mode in sorted(proxy.ports.items())
             ),
+            (
+                "SSL MITM support",
+                (
+                    ("§aAvailable§r" if proxy.ssl.cert_db else "§cNo certificates§r")
+                    if proxy.ssl
+                    else "§8Disabled§r"
+                ),
+            ),
             no_top=i > 0,
             color=True,
         )
@@ -98,6 +107,7 @@ def create(total: int = 0):
     while total > len(PROXY):
         proxy = ProxyModule()
         PROXY.append(proxy)
+        COMMAND.on_load()
     mce(f"§fProxy module(s) created, total: {len(PROXY)}§r")
 
 
@@ -292,6 +302,14 @@ def test(proxy: ProxyModule, request: str):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def on_load(self) -> None:
+        ssl_module = get_module("ssl", no_import=True)
+        if not ssl_module:
+            return
+        mce("§8Connecting SSL module to all proxies...§r")
+        for proxy in PROXY:
+            proxy.ssl = ssl_module.instance_get()
 
     def instance_get(self) -> Any:
         return PROXY

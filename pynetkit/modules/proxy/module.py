@@ -11,6 +11,7 @@ from threading import Thread
 from typing import Callable
 
 from pynetkit.modules.base import ModuleBase
+from pynetkit.modules.ssl import SslModule
 
 from .types.address import ProxyAddress
 from .types.enums import ProxyPortMode
@@ -36,6 +37,7 @@ class ProxyModule(ModuleBase):
     proxy_db: list[
         tuple[ProxyAddress, ProxyAddress] | Callable[[ProxySocket], ProxyAddress]
     ] = None
+    ssl: SslModule | None = None
     # server handle
     _threads: list[Thread] = None
     _servers: list[ThreadingTCPServer] = None

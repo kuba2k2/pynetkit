@@ -10,6 +10,7 @@ import cloup
 from click import Context
 from prettytable.colortable import ColorTable, Themes
 
+from pynetkit.cli.command import get_module
 from pynetkit.cli.commands.base import (
     CONTEXT_SETTINGS,
     BaseCommandModule,
@@ -214,6 +215,14 @@ def generate(names: tuple[str]):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def on_load(self) -> None:
+        proxy_module = get_module("proxy", no_import=True)
+        if not proxy_module:
+            return
+        mce("§8Connecting SSL module to all proxies...§r")
+        for proxy in proxy_module.instance_get():
+            proxy.ssl = ssl
 
     def instance_get(self) -> Any:
         return ssl
