@@ -23,11 +23,15 @@ class SslStoreEntry:
     usage: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
-        if not self.is_ca:
-            for name in self.subject_names:
-                self.usage.add(name)
-                if name.startswith("*."):
-                    self.usage.add(name[2:])
+        self.usage = self.usage_defaults
+
+    @property
+    def usage_defaults(self) -> set[str]:
+        if self.is_ca:
+            return set()
+        out = set(self.subject_names)
+        out |= set(n[2:] for n in out if n.startswith("*."))
+        return out
 
     @property
     def subject(self) -> dict[str, str]:

@@ -3,6 +3,7 @@
 import re
 from logging import error, info, warning
 from pathlib import Path
+from typing import Generator
 
 import click
 import cloup
@@ -13,6 +14,7 @@ from pynetkit.cli.commands.base import (
     CONTEXT_SETTINGS,
     BaseCommandModule,
 )
+from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import mc, mce
 from pynetkit.modules.ssl import SslModule
 
@@ -212,6 +214,44 @@ def generate(names: tuple[str]):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def config_get(self) -> Config.Module:
+        use_dict: dict[str, list[str]] = {}
+        unuse_dict: dict[str, list[str]] = {}
+        for entry in ssl.cert_db:
+            if not entry.paths:
+                continue
+            fingerprint = entry.fingerprint.hex()
+            defaults = entry.usage_defaults
+            use_list = sorted(entry.usage - defaults)
+            unuse_list = sorted(defaults - entry.usage)
+            if use_list:
+                use_dict[fingerprint] = use_list
+            if unuse_list:
+                unuse_dict[fingerprint] = unuse_list
+        return Config.Module(
+            order=500,
+            config=dict(
+                paths=sorted(set(str(p) for e in ssl.cert_db for p in e.paths)),
+                use=dict(sorted(use_dict.items())),
+                unuse=dict(sorted(unuse_dict.items())),
+            ),
+            scripts=dict(
+                unload=["ssl clear"],
+            ),
+        )
+
+    def config_commands(self, config: Config.Module) -> Generator[str, None, None]:
+        for path in config.config.get("paths", []):
+            yield f'ssl import "{path}"'
+        for query, names in config.config.get("use", {}).items():
+            if not names:
+                continue
+            yield f'ssl use "{query}" ' + " ".join(f'"{n}"' for n in names)
+        for query, names in config.config.get("unuse", {}).items():
+            if not names:
+                continue
+            yield f'ssl use -u "{query}" ' + " ".join(f'"{n}"' for n in names)
 
 
 cli.section("Certificate management", import_, export, delete, clear)
