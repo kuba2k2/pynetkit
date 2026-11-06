@@ -114,6 +114,9 @@ class BaseCommandModule:
         click.echo(ctx.get_help(), color=ctx.color)
         ctx.exit()
 
+    def instance_get(self) -> Any:
+        return None
+
     def config_get(self) -> Config.Module:
         return Config.Module()
 

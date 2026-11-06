@@ -3,7 +3,7 @@
 from ipaddress import IPv4Address
 from logging import error, info, warning
 from types import FunctionType
-from typing import Generator
+from typing import Any, Generator
 
 import click
 import cloup
@@ -94,9 +94,7 @@ def cli(ctx: Context, proxy: ProxyModule | None):
 @cloup.argument("total", default=0, help="Total number of proxy server instances.")
 def create(total: int = 0):
     if not total:
-        proxy = ProxyModule()
-        PROXY.append(proxy)
-        return
+        total = len(PROXY) + 1
     while total > len(PROXY):
         proxy = ProxyModule()
         PROXY.append(proxy)
@@ -294,6 +292,9 @@ def test(proxy: ProxyModule, request: str):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def instance_get(self) -> Any:
+        return PROXY
 
     @staticmethod
     def _config_get_proxy_db(proxy: ProxyModule) -> Generator[dict, None, None]:

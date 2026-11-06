@@ -1,6 +1,6 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-27.
 
-from typing import Generator
+from typing import Any, Generator
 
 import click
 import cloup
@@ -330,6 +330,9 @@ async def apstop(index: int):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def instance_get(self) -> Any:
+        return wifi
 
     @staticmethod
     def _network_to_dict(network: WifiNetwork | None) -> dict | None:

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from ipaddress import IPv4Address, IPv4Interface
-from typing import Generator, Iterable
+from typing import Any, Generator, Iterable
 
 import click
 import cloup
@@ -429,6 +429,9 @@ class CommandModule(BaseCommandModule):
         run_command("network use 1 wired")
         run_command("network use 2 sta")
         run_command("network use 3 ap")
+
+    def instance_get(self) -> Any:
+        return network
 
     def config_get(self) -> Config.Module:
         return Config.Module(

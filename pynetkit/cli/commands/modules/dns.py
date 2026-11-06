@@ -88,9 +88,7 @@ def cli(ctx: Context, dns: DnsModule | None):
 @cloup.argument("total", default=0, help="Total number of DNS server instances.")
 def create(total: int = 0):
     if not total:
-        dns = DnsModule()
-        DNS.append(dns)
-        return
+        total = len(DNS) + 1
     while total > len(DNS):
         dns = DnsModule()
         DNS.append(dns)
@@ -278,6 +276,9 @@ def query(dns: DnsModule, name: str, type: str):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def instance_get(self) -> Any:
+        return DNS
 
     @staticmethod
     def _config_get_dns_db(dns: DnsModule) -> Generator[dict, None, None]:

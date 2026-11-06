@@ -2,7 +2,7 @@
 
 from ipaddress import IPv4Address
 from logging import error, warning
-from typing import Generator
+from typing import Any, Generator
 
 import click
 import cloup
@@ -67,9 +67,7 @@ def cli(ctx: Context, ntp: NtpModule | None):
 @cloup.argument("total", default=0, help="Total number of NTP server instances.")
 def create(total: int = 0):
     if not total:
-        ntp = NtpModule()
-        NTP.append(ntp)
-        return
+        total = len(NTP) + 1
     while total > len(NTP):
         ntp = NtpModule()
         NTP.append(ntp)
@@ -155,6 +153,9 @@ def offset(ntp: NtpModule, address: IPv4Address, time_offset: tuple[str]):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def instance_get(self) -> Any:
+        return NTP
 
     def config_get(self) -> Config.Module:
         if not NTP:

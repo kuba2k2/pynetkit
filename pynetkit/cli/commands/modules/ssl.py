@@ -3,7 +3,7 @@
 import re
 from logging import error, info, warning
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 
 import click
 import cloup
@@ -214,6 +214,9 @@ def generate(names: tuple[str]):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def instance_get(self) -> Any:
+        return ssl
 
     def config_get(self) -> Config.Module:
         use_dict: dict[str, list[str]] = {}

@@ -2,7 +2,7 @@
 
 from ipaddress import IPv4Address, IPv4Interface
 from logging import warning
-from typing import Generator
+from typing import Any, Generator
 
 import click
 import cloup
@@ -89,9 +89,7 @@ def cli(ctx: Context, dhcp: DhcpModule | None):
 @cloup.argument("total", default=0, help="Total number of DHCP server instances.")
 def create(total: int = 0):
     if not total:
-        dhcp = DhcpModule()
-        DHCP.append(dhcp)
-        return
+        total = len(DHCP) + 1
     while total > len(DHCP):
         dhcp = DhcpModule()
         DHCP.append(dhcp)
@@ -215,6 +213,9 @@ def option(dhcp: DhcpModule, option: str, data: str, client: MAC | None):
 
 class CommandModule(BaseCommandModule):
     CLI = cli
+
+    def instance_get(self) -> Any:
+        return DHCP
 
     def config_get(self) -> Config.Module:
         if not DHCP:
