@@ -18,6 +18,7 @@ from pynetkit.cli.commands.base import (
 from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import mc, mce
 from pynetkit.modules.ssl import SslModule
+from pynetkit.util.misc import matches
 
 ssl = SslModule()
 
@@ -109,7 +110,8 @@ def export(query: str, path: Path):
             )
             return
 
-    ssl.export_chain(entry=entry, path=path)
+    with path.open("wb") as f:
+        ssl.export_chain(entry=entry, file=f)
     mce(f"§fExported §d{entry.subject_cn}§f as §d{path.absolute().resolve()}§r")
 
     if not entry.paths:
@@ -166,9 +168,14 @@ def use(query: str, names: tuple[str], unuse: bool):
     # add or remove names
     if not unuse:
         # run some usage checks
+        if not entry.key:
+            error(f"Cannot use {entry.subject_cn} - no private key available")
+            return
         if "*" in names:
             warning("Domain name '*' matches TLD only; use '**' to match any domain.")
         for name in names:
+            if entry.is_ca and matches(r"(\d+\.){3}\d+", name):
+                warning(f"IP address {name} won't be used for certificate generation")
             if name.startswith("*.") and name.count(".") > 1 and name[2:] not in names:
                 info(
                     f"Pattern '{name}' matches subdomain only; "
@@ -195,7 +202,7 @@ def generate(names: tuple[str]):
     for name in names:
         if name.startswith("*.") and name[2:] not in names:
             warning(f"Consider adding wildcard parent ({name[2:]}) to SAN list")
-        entry = ssl.find_for_subject(name)
+        entry = ssl.get_for_subject(name)
         if entry and entry.key:
             warning(
                 f"Certificate for '{name}' already exists: "

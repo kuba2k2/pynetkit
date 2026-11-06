@@ -5,6 +5,7 @@ import socketserver
 from ipaddress import IPv4Address
 from socket import AF_INET, SOCK_STREAM, socket
 from socketserver import BaseRequestHandler
+from ssl import PROTOCOL_TLS_CLIENT, PROTOCOL_TLS_SERVER, SSLContext, VerifyMode
 
 from pynetkit.util.socketio import PeekingIO, SocketIO
 
@@ -132,6 +133,52 @@ class ProxyHandler(BaseRequestHandler):
         # try to read address fields if possible (plaintext HTTP or TLS w/ SNI)
         self.fill_address(self.client)
 
+        # try enabling SSL MITM mode if the module is available
+        if self.client.protocol == ProxyProtocol.TLS and self.proxy.ssl:
+            # try proxy IP address first - but don't generate, so if it's found
+            # then it was explicitly enabled
+            ssl_names = [str(self.proxy.address)]
+            ssl_entry = self.proxy.ssl.get_for_subject(ssl_names[-1])
+            message = "No certificate"
+            # otherwise try the SNI domain, or empty string but don't generate then
+            if not ssl_entry:
+                ssl_names.append(self.client.address.host or "")
+                ssl_entry = self.proxy.ssl.get_for_subject(
+                    ssl_names[-1],
+                    can_generate=bool(ssl_names[-1]),
+                )
+                if ssl_names[-1]:
+                    message = "No certificate and/or CA assigned"
+                else:
+                    message = (
+                        "No certificate assigned (and SNI is missing - can't generate)"
+                    )
+            # enable SSL MITM if the certificate is available
+            if not ssl_entry:
+                self.proxy.warning(
+                    f"{message} for any of: {ssl_names} - check SSL module configuration"
+                )
+            else:
+                chain_path = self.proxy.ssl.export_chain_tmp(ssl_entry)
+                ctx = SSLContext(PROTOCOL_TLS_SERVER)
+                ctx.load_cert_chain(chain_path)
+                # noinspection bad-argument-type
+                ssl_sock = ctx.wrap_socket(
+                    sock=self.client.io,
+                    server_side=True,
+                    do_handshake_on_connect=False,
+                )
+                ssl_sock.do_handshake()
+                self.client = ProxySocket(
+                    address=self.client.address,
+                    io=SocketIO(ssl_sock),
+                    parent=self.client,
+                )
+                # set as TCP, as this socket now carries unencrypted traffic
+                self.client.protocol = ProxyProtocol.TCP
+                # fill address fields if protocol is HTTP
+                self.fill_address(self.client)
+
         # resolve configured target address
         self.server.address = self.proxy.resolve_target(self.client)
         self.server.protocol = self.server.address.protocol or self.server.protocol
@@ -174,8 +221,24 @@ class ProxyHandler(BaseRequestHandler):
                 return
 
             case (ProxyProtocol.TCP, ProxyProtocol.TLS):
-                self.proxy.error("SSL mode not available yet")
-                return
+                ctx = SSLContext(PROTOCOL_TLS_CLIENT)
+                ctx.check_hostname = False
+                ctx.verify_mode = VerifyMode.CERT_NONE
+                # noinspection bad-argument-type
+                ssl_sock = ctx.wrap_socket(
+                    sock=self.server.io,
+                    server_side=False,
+                    do_handshake_on_connect=True,
+                    server_hostname=self.server.address.host,
+                )
+                ssl_sock.do_handshake()
+                self.server = ProxySocket(
+                    address=self.server.address,
+                    io=SocketIO(ssl_sock),
+                    parent=self.server,
+                )
+                # set as TCP, as this socket now carries unencrypted traffic
+                self.server.protocol = ProxyProtocol.TCP
 
         assert (
             self.client.protocol == self.server.protocol

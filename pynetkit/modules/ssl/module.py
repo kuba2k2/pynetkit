@@ -1,7 +1,9 @@
 #  Copyright (c) Kuba Szczodrzyński 2026-11-2.
 
+from io import BytesIO
 from pathlib import Path
-from typing import Any
+from tempfile import gettempdir
+from typing import IO, Any
 
 from cryptography.hazmat.primitives.asymmetric.dsa import DSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
@@ -9,7 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.asymmetric.types import (
     CertificateIssuerPrivateKeyTypes,
 )
-from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.primitives.hashes import MD5, SHA256, Hash
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     NoEncryption,
@@ -31,6 +33,8 @@ class SslModule(ModuleBase):
     def __init__(self):
         super().__init__()
         self.cert_db = []
+        self.tmp_dir = Path(gettempdir()).resolve() / "pynetkit" / "ssl"
+        self.tmp_dir.mkdir(parents=True, exist_ok=True)
 
     def sort_db(self) -> None:
         def key(e: SslStoreEntry):
@@ -180,7 +184,7 @@ class SslModule(ModuleBase):
     def export_chain(
         self,
         entry: SslStoreEntry,
-        path: Path | None,
+        file: IO[bytes] | None,
     ) -> list[SslStoreEntry]:
         # rebuild the chain
         chain = [entry]
@@ -189,29 +193,51 @@ class SslModule(ModuleBase):
             if issuer in (chain[-1], None):
                 break
             chain.append(issuer)
-        if not path:
+        if not file:
             return chain
 
         # save as PEM
-        with path.open("wb") as f:
-            for i, entry in enumerate(chain):
-                f.write(entry.cert.public_bytes(Encoding.PEM))
-                # private key after 1st certificate, and only for this one
-                if i == 0 and entry.key:
-                    private_bytes = entry.key.private_bytes(
-                        encoding=Encoding.PEM,
-                        format=PrivateFormat.TraditionalOpenSSL,
-                        encryption_algorithm=NoEncryption(),
-                    )
-                    f.write(private_bytes)
+        for i, entry in enumerate(chain):
+            file.write(entry.cert.public_bytes(Encoding.PEM))
+            # private key after 1st certificate, and only for this one
+            if i == 0 and entry.key:
+                private_bytes = entry.key.private_bytes(
+                    encoding=Encoding.PEM,
+                    format=PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=NoEncryption(),
+                )
+                file.write(private_bytes)
         return chain
 
-    def find_for_subject(self, name: str) -> SslStoreEntry | None:
+    def export_chain_tmp(self, entry: SslStoreEntry) -> Path:
+        # if successful, export as temporary PEM file
+        pem_io = BytesIO()
+        self.export_chain(entry, file=pem_io)
+        # hash full chain PEM bytes
+        digest = Hash(MD5())
+        digest.update(pem_io.getvalue())
+        digest_hex = digest.finalize().hex()
+        # build a filename based on that hash, write if it doesn't exist yet
+        tmp_path = self.tmp_dir / f"md5-{digest_hex}.pem"
+        if not tmp_path.is_file():
+            tmp_path.write_bytes(pem_io.getvalue())
+        return tmp_path
+
+    def get_for_subject(
+        self,
+        *names: str,
+        ca: bool = False,
+        can_generate: bool = False,
+    ) -> SslStoreEntry | None:
+        if ca and can_generate:
+            raise ValueError("Only one of 'ca' and 'can_generate' may be True")
         for entry in self.cert_db:
-            if entry.is_ca or not entry.key:
+            if entry.is_ca != ca or not entry.key:
                 continue
-            if any(matches_wildcard(p, name) for p in entry.subject_names):
+            if any(matches_wildcard(p, n) for p in entry.usage for n in names):
                 return entry
+        if not ca and can_generate:
+            return self.generate_for_subject(*names)
         return None
 
     def generate_for_subject(
@@ -219,18 +245,13 @@ class SslModule(ModuleBase):
         *names: str,
         no_import: bool = False,
     ) -> SslStoreEntry | None:
-        # use first name as primary subject CN
         if not names:
             return None
-        name = names[0]
 
         # find a CA that can generate for this subject
-        for entry in self.cert_db:
-            if not entry.is_ca or not entry.key:
-                continue
-            if any(matches_wildcard(p, name) for p in entry.usage):
-                break
-        else:
+        # use first name as primary subject CN
+        entry = self.get_for_subject(names[0], ca=True)
+        if not entry:
             return None
         ca_cert, ca_key = entry.cert, entry.key
 
