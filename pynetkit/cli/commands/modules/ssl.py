@@ -14,6 +14,7 @@ from pynetkit.cli.command import get_module
 from pynetkit.cli.commands.base import (
     CONTEXT_SETTINGS,
     BaseCommandModule,
+    async_command,
 )
 from pynetkit.cli.config import Config
 from pynetkit.cli.util.mce import mc, mce
@@ -34,7 +35,7 @@ def cli(ctx: Context):
         return
 
     table = ColorTable(
-        [" ", "Subject name(s)", "Issuer", "Usage"],
+        [" ", "Subject name(s)", "Issuer", "Usage", "Handshakes"],
         theme=Themes.OCEAN_DEEP,
     )
     table.title = "SSL certificate store"
@@ -52,6 +53,23 @@ def cli(ctx: Context):
                 usage = f"{title} for:§r\n" + (usage or "§8(not used yet)§r")
             case (True, True):
                 usage = "§2Authority for:§r\n" + (usage or "§8(not used yet)§r")
+
+        handshakes = ""
+        if not entry.is_ca and entry.fingerprint in ssl.trust_db:
+            counts = {True: 0, False: 0}
+            total = 0
+            for errors in ssl.trust_db[entry.fingerprint].values():
+                for e, c in errors.items():
+                    counts[not e] += c
+                    total += c
+            score = f" §3({int(counts[True] / total * 100.0)}%)" if total else ""
+            if counts[True] > counts[False]:
+                handshakes = f"§2{counts[True]} OK, §8{counts[False]} failed{score}§r"
+            elif counts[False] > counts[True]:
+                handshakes = f"§8{counts[True]} OK, §c{counts[False]} failed{score}§r"
+            else:
+                handshakes = f"§3{counts[True]} OK, {counts[False]} failed{score}§r"
+
         table.add_row(
             [
                 idx + 1,
@@ -62,6 +80,7 @@ def cli(ctx: Context):
                     else f"§4{entry.issuer_cn}§r"
                 ),
                 mc(usage),
+                mc(handshakes),
             ]
         )
 
@@ -76,7 +95,10 @@ def cli(ctx: Context):
     required=True,
     help="Paths to files (PEM-formatted) or directories (with *.pem files).",
 )
-def import_(paths: tuple[Path]):
+@async_command
+async def import_(paths: tuple[Path]):
+    if not ssl.is_started:
+        await ssl.start()
     cert_count, key_count = ssl.import_files(*paths)
     mce(f"§fImported §d{cert_count}§f certificates and §d{key_count}§f private keys§r")
 
@@ -139,10 +161,25 @@ def delete(index: int):
 
 
 @cloup.command(help="Delete all certificates from the database.")
-def clear():
+@cloup.option(
+    "-g",
+    "--generated",
+    is_flag=True,
+    help="Only delete auto-generated certificates.",
+)
+def clear(generated: bool):
     num = len(ssl.cert_db)
-    ssl.cert_db.clear()
-    mce(f"§fCertificate database cleared (§d{num}§f entries deleted)§r")
+    if generated:
+        for entry in list(ssl.cert_db):
+            if entry.paths:
+                continue
+            ssl.cert_db.remove(entry)
+    else:
+        ssl.cert_db.clear()
+    mce(
+        "§fCertificate database cleared "
+        f"(§d{num - len(ssl.cert_db)}§f entries deleted)§r"
+    )
 
 
 @cloup.command(help="Use a CA or certificate for given host names.")

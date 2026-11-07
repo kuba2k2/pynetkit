@@ -1,6 +1,8 @@
 #  Copyright (c) Kuba Szczodrzyński 2026-11-2.
 
+from collections import defaultdict
 from io import BytesIO
+from ipaddress import IPv4Address
 from pathlib import Path
 from tempfile import gettempdir
 from typing import IO, Any
@@ -20,7 +22,7 @@ from cryptography.hazmat.primitives.serialization import (
 )
 from cryptography.x509 import Certificate, load_pem_x509_certificates
 
-from pynetkit.modules.base import ModuleBase
+from pynetkit.modules.base import BaseEvent, ModuleBase, subscribe
 from pynetkit.util.misc import matches_wildcard
 
 from .types import SslStoreEntry
@@ -29,12 +31,43 @@ from .types import SslStoreEntry
 class SslModule(ModuleBase):
     # runtime configuration
     cert_db: list[SslStoreEntry]
+    # runtime status
+    # { fingerprint: { client: { error|None: count } } }
+    trust_db: dict[bytes, dict[IPv4Address, dict[str | None, int]]]
 
     def __init__(self):
         super().__init__()
         self.cert_db = []
+        self.trust_db = defaultdict(
+            lambda: defaultdict(
+                lambda: defaultdict(int),
+            )
+        )
         self.tmp_dir = Path(gettempdir()).resolve() / "pynetkit" / "ssl"
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    @subscribe(BaseEvent)
+    async def on_proxy_event(self, e: BaseEvent) -> None:
+        from ssl import SSLError
+
+        from pynetkit.modules.proxy import ProxyEvent
+
+        if not isinstance(e, ProxyEvent):
+            return
+        if not e.mitm:
+            return
+
+        fingerprint = e.mitm.fingerprint
+        client = e.client[0]
+        error = None
+        match e.error:
+            case SSLError():
+                error = e.error.reason
+            case ConnectionResetError():
+                error = "connection reset"
+            case _ if e.error:
+                error = type(e.error).__name__
+        self.trust_db[fingerprint][client][error] += 1
 
     def sort_db(self) -> None:
         def key(e: SslStoreEntry):

@@ -75,10 +75,10 @@ def event_log_print(e: BaseEvent):
             no_err = e.status == ProxyEvent.Status.CONNECTED
             err = str(e.error) if e.error else "unknown error"
             match e.error:
-                case SSLError():
-                    err = e.error.reason or err
                 case SSLEOFError():
                     err = "EOF"
+                case SSLError():
+                    err = e.error.reason or err
                 case ConnectionResetError():
                     err = "connection reset"
             mce(
