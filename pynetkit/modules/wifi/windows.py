@@ -310,8 +310,6 @@ class WifiWindows(WifiCommon):
                 )
         else:
             # command line-based implementation
-            await self.stop_access_point(adapter)
-            await asyncio.sleep(2)
             self.command(
                 "netsh",
                 "wlan",
