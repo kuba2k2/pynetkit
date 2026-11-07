@@ -3,6 +3,7 @@
 import curses
 import curses.panel
 from curses import A_BOLD
+from threading import Lock
 
 from pynetkit.util.logging import LoggingHandler
 
@@ -56,6 +57,7 @@ class BaseWindow:
 
     def __init__(
         self,
+        win_lock: Lock,
         stdscr: curses.window,
         nlines: int | None,
         ncols: int | None,
@@ -63,6 +65,7 @@ class BaseWindow:
         x: int,
     ):
         self.logger = LoggingHandler.get()
+        self.win_lock = win_lock
         self.stdscr = stdscr
         self.nlines = nlines
         self.ncols = ncols

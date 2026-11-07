@@ -2,6 +2,7 @@
 
 import curses
 import curses.panel
+from threading import Lock
 
 from .windows.base import colors_init
 from .windows.input import InputWindow
@@ -18,9 +19,18 @@ def main(stdscr: curses.window, config: str | None):
 
     try:
         cmd_size = 3
-        log_window = LogWindow(stdscr, nlines=-cmd_size, ncols=None, y=0, x=0)
+        win_lock = Lock()
+        log_window = LogWindow(
+            win_lock=win_lock,
+            stdscr=stdscr,
+            nlines=-cmd_size,
+            ncols=None,
+            y=0,
+            x=0,
+        )
         input_window = InputWindow(
-            stdscr,
+            win_lock=win_lock,
+            stdscr=stdscr,
             nlines=cmd_size,
             ncols=None,
             y=-cmd_size,

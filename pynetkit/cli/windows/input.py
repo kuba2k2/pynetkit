@@ -110,26 +110,30 @@ class InputWindow(BaseWindow):
         return None
 
     def set_cursor(self) -> None:
-        self.win.move(0, len(self.prompt) + self.pos)
+        with self.win_lock:
+            self.win.move(0, len(self.prompt) + self.pos)
 
     def redraw_prompt(self) -> None:
-        self.win.clear()
-        self.win.addstr(0, 0, self.prompt + self.lines[self.index])
+        with self.win_lock:
+            self.win.clear()
+            self.win.addstr(0, 0, self.prompt + self.lines[self.index])
         self.set_cursor()
 
     def reset_prompt(self) -> None:
-        self.win.clear()
-        self.win.addstr(0, 0, self.prompt)
-        self.win.refresh()
+        with self.win_lock:
+            self.win.clear()
+            self.win.addstr(0, 0, self.prompt)
+            self.win.refresh()
         self.lines = self.history + [""]
         self.index = len(self.history)
         self.pos = 0
 
     def cut_length(self, line: str, n: int) -> None:
         self.lines[self.index] = line[0 : self.pos] + line[self.pos + n :]
-        self.win.move(0, len(self.prompt) + self.pos)
-        self.win.addstr(line[self.pos + n :])
-        self.win.addstr(" " * n)
+        with self.win_lock:
+            self.win.move(0, len(self.prompt) + self.pos)
+            self.win.addstr(line[self.pos + n :])
+            self.win.addstr(" " * n)
         self.set_cursor()
 
     def seek_word_left(self, line: str) -> None:
@@ -197,8 +201,9 @@ class InputWindow(BaseWindow):
                 else:
                     return
                 line = self.lines[self.index]
-                self.win.clear()
-                self.win.addstr(0, 0, self.prompt + line)
+                with self.win_lock:
+                    self.win.clear()
+                    self.win.addstr(0, 0, self.prompt + line)
                 self.pos = len(line)
             # Arrow Left/Right keys
             case Keycodes.KEY_LEFT | Keycodes.KEY_RIGHT:
@@ -329,7 +334,8 @@ class InputWindow(BaseWindow):
                 # add the completion to the command
                 self.lines[self.index] = line_part + completion + line[self.pos :]
                 self.pos += len(completion)
-                self.win.insstr(completion)
+                with self.win_lock:
+                    self.win.insstr(completion)
                 self.set_cursor()
 
             # Unrecognized escape codes (not in Keycodes.MAPPING)
@@ -346,7 +352,8 @@ class InputWindow(BaseWindow):
             case str():
                 self.lines[self.index] = line[0 : self.pos] + ch + line[self.pos :]
                 self.pos += len(ch)
-                self.win.insstr(ch)
+                with self.win_lock:
+                    self.win.insstr(ch)
                 self.set_cursor()
             case int():
                 info(f"Key event: {ch}")

@@ -62,7 +62,8 @@ class LogWindow(BaseWindow):
 
         if "\x1b" not in message:
             self._add_message(line, message, attr)
-            self.win.refresh()
+            with self.win_lock:
+                self.win.refresh()
             return
         for message in message.split("\x1b"):
             if not message:
@@ -70,7 +71,8 @@ class LogWindow(BaseWindow):
             if len(message) >= 3 and message[0] == "[" and "m" in message[2:4]:
                 message, attr = self._process_color(message, attr, reset)
             line = self._add_message(line, message, attr)
-        self.win.refresh()
+        with self.win_lock:
+            self.win.refresh()
 
     def _add_message(
         self,
@@ -80,7 +82,8 @@ class LogWindow(BaseWindow):
     ) -> LineType:
         if self.scroll == 0:
             # print the message directly if not scrolled
-            self.win.addstr(message, attr)
+            with self.win_lock:
+                self.win.addstr(message, attr)
         if "\n" not in message:
             line.append((message, attr))
             return line
@@ -102,8 +105,9 @@ class LogWindow(BaseWindow):
 
     def _redraw_log(self) -> None:
         y, x = self.win.getmaxyx()
-        self.win.clear()
-        self.win.move(y - 1, 0)
+        with self.win_lock:
+            self.win.clear()
+            self.win.move(y - 1, 0)
         if self.scroll:
             lines = self.lines[-y - self.scroll - 1 : -self.scroll - 1]
         else:
@@ -111,26 +115,30 @@ class LogWindow(BaseWindow):
         for line in lines:
             for token in line:
                 if token is None:
-                    self.win.addstr("\n")
+                    with self.win_lock:
+                        self.win.addstr("\n")
                     break
                 message, attr = token
-                self.win.addstr(message, attr)
+                with self.win_lock:
+                    self.win.addstr(message, attr)
         if self.scroll:
             self._show_scroll()
         if lines:
-            self.win.refresh()
+            with self.win_lock:
+                self.win.refresh()
 
     def _show_scroll(self) -> None:
         y, x = self.win.getmaxyx()
-        self.win.move(y - 1, 0)
-        self.win.addstr(
-            (
-                f"... 1 more line ..."
-                if self.scroll == 1
-                else f"... {self.scroll} more lines ..."
-            ),
-            self.color_attr("bright_black"),
-        )
+        with self.win_lock:
+            self.win.move(y - 1, 0)
+            self.win.addstr(
+                (
+                    f"... 1 more line ..."
+                    if self.scroll == 1
+                    else f"... {self.scroll} more lines ..."
+                ),
+                self.color_attr("bright_black"),
+            )
 
     def on_scroll(self, lines: int) -> None:
         y, x = self.win.getmaxyx()
