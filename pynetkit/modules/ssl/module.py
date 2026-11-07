@@ -32,6 +32,7 @@ class SslModule(ModuleBase):
     # runtime configuration
     cert_db: list[SslStoreEntry]
     keylog_path: Path | None
+    exclude_list: set[str]
     # runtime status
     # { fingerprint: { client: { error|None: count } } }
     trust_db: dict[bytes, dict[IPv4Address, dict[str | None, int]]]
@@ -40,6 +41,7 @@ class SslModule(ModuleBase):
         super().__init__()
         self.cert_db = []
         self.keylog_path = None
+        self.exclude_list = set()
         self.trust_db = defaultdict(
             lambda: defaultdict(
                 lambda: defaultdict(int),
@@ -261,6 +263,9 @@ class SslModule(ModuleBase):
         if not tmp_path.is_file():
             tmp_path.write_bytes(pem_io.getvalue())
         return tmp_path
+
+    def check_excluded(self, name: str) -> bool:
+        return any(matches_wildcard(p, name) for p in self.exclude_list)
 
     def get_for_subject(
         self,

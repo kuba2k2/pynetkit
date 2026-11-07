@@ -145,8 +145,13 @@ class ProxyHandler(BaseRequestHandler):
         self.fill_address(self.client)
 
         # try enabling SSL MITM mode if the module is available
+        # (and requested domain name is not excluded)
         ssl_entry: SslStoreEntry | None = None
-        if self.client.protocol == ProxyProtocol.TLS and self.proxy.ssl:
+        if (
+            self.client.protocol == ProxyProtocol.TLS
+            and self.proxy.ssl
+            and not self.proxy.ssl.check_excluded(self.client.address.host or "")
+        ):
             ssl_names = []
             # try SNI first (if available)
             if self.client.address.host:

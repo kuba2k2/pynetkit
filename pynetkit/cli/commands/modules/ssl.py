@@ -17,7 +17,7 @@ from pynetkit.cli.commands.base import (
     async_command,
 )
 from pynetkit.cli.config import Config
-from pynetkit.cli.util.mce import mc, mce
+from pynetkit.cli.util.mce import config_table, mc, mce
 from pynetkit.modules.ssl import SslModule
 from pynetkit.util.misc import matches
 
@@ -33,6 +33,23 @@ ssl = SslModule()
 def cli(ctx: Context):
     if ctx.invoked_subcommand:
         return
+
+    if ssl.exclude_list:
+        exclude_list = [("Exclude list", "")]
+        exclude_list += [("", name) for name in sorted(ssl.exclude_list)]
+    else:
+        exclude_list = [("Exclude list", "(empty)")]
+
+    config_table(
+        f"SSL module",
+        (
+            "State",
+            (f"§aActive§r ({ssl.thread.name})" if ssl.is_started else "§8Idle"),
+        ),
+        ("Key logging file", ssl.keylog_path or "(not set)"),
+        *exclude_list,
+        color=True,
+    )
 
     table = ColorTable(
         [" ", "Subject name(s)", "Issuer", "Usage", "Handshakes"],
@@ -276,6 +293,28 @@ def keylog(path: Path | None):
         mce(f"§fTLS key logging is now §4disabled§r")
 
 
+@cloup.command(help="Exclude domain names from SSL MITM, despite having a certificate.")
+@cloup.argument(
+    "names",
+    type=str,
+    nargs=-1,
+    required=True,
+    help="Domain names (CN) to assign. Wildcard '*' matches one level, '**' matches multiple levels.",
+)
+@cloup.option(
+    "-u",
+    "--undo",
+    is_flag=True,
+    help="Undo previous exclusions.",
+)
+def exclude(names: tuple[str], undo: bool):
+    if not undo:
+        ssl.exclude_list.update(names)
+    else:
+        ssl.exclude_list.difference_update(names)
+    mce("§fExclude list updated. Run §dssl§f command to see the list.")
+
+
 class CommandModule(BaseCommandModule):
     CLI = cli
 
@@ -311,6 +350,7 @@ class CommandModule(BaseCommandModule):
                 use=dict(sorted(use_dict.items())),
                 unuse=dict(sorted(unuse_dict.items())),
                 keylog=str(ssl.keylog_path) if ssl.keylog_path else None,
+                exclude=sorted(ssl.exclude_list),
             ),
             scripts=dict(
                 unload=["ssl clear"],
@@ -319,7 +359,8 @@ class CommandModule(BaseCommandModule):
 
     def config_commands(self, config: Config.Module) -> Generator[str, None, None]:
         paths = config.config.get("paths", [])
-        yield f"ssl import " + " ".join(f'"{p}"' for p in paths)
+        if paths:
+            yield f"ssl import " + " ".join(f'"{p}"' for p in paths)
         for query, names in config.config.get("use", {}).items():
             if not names:
                 continue
@@ -331,9 +372,12 @@ class CommandModule(BaseCommandModule):
         keylog = config.config.get("keylog", None)
         if keylog:
             yield f'ssl keylog "{keylog}"'
+        exclude = config.config.get("exclude", [])
+        if exclude:
+            yield f"ssl exclude " + " ".join(f'"{p}"' for p in exclude)
 
 
 cli.section("Certificate management", import_, export, delete, clear)
 cli.section("Certificate Authority usage", use, generate)
-cli.section("SSL MITM configuration", keylog)
+cli.section("SSL MITM configuration", keylog, exclude)
 COMMAND = CommandModule()
