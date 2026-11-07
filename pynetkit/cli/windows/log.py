@@ -1,5 +1,7 @@
 #  Copyright (c) Kuba Szczodrzyński 2024-10-10.
 
+from queue import Queue
+from threading import Thread
 
 from .base import BaseWindow
 
@@ -29,10 +31,15 @@ LineType = list[TokenType]
 
 class LogWindow(BaseWindow):
     TITLE = "Log console"
+    queue: Queue
+    thread: Thread
     lines: list[LineType]
     scroll: int = 0
 
     def __post_init__(self):
+        self.queue = Queue()
+        self.thread = Thread(target=self.emit_thread, daemon=True)
+        self.thread.start()
         self.lines = []
         self.scroll = 0
         # hook stdout/stderr and print in the log console
@@ -47,7 +54,15 @@ class LogWindow(BaseWindow):
         self.win.refresh()
         self._redraw_log()
 
-    def emit_raw(self, _: str, message: str, color: str, nl: bool) -> None:
+    def emit_raw(self, log_prefix: str, message: str, color: str, nl: bool) -> None:
+        self.queue.put((log_prefix, message, color, nl))
+
+    def emit_thread(self) -> None:
+        while True:
+            log_prefix, message, color, nl = self.queue.get()
+            self.emit_private(log_prefix, message, color, nl)
+
+    def emit_private(self, _: str, message: str, color: str, nl: bool) -> None:
         if nl:
             message = f"{message}\n"
         attr = self.color_attr(color)
