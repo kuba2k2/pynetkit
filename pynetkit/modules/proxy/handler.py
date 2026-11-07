@@ -141,25 +141,29 @@ class ProxyHandler(BaseRequestHandler):
         # try enabling SSL MITM mode if the module is available
         ssl_entry: SslStoreEntry | None = None
         if self.client.protocol == ProxyProtocol.TLS and self.proxy.ssl:
-            # try proxy IP address first - but don't generate, so if it's found
-            # then it was explicitly enabled
-            ssl_names = [str(self.proxy.address)]
-            ssl_entry = self.proxy.ssl.get_for_subject(ssl_names[-1])
-            message = "No certificate"
-            # otherwise try the SNI domain, or empty string but don't generate then
-            if not ssl_entry:
-                ssl_names.append(self.client.address.host or "")
+            ssl_names = []
+            # try SNI first (if available)
+            if self.client.address.host:
+                ssl_names.append(self.client.address.host)
                 ssl_entry = self.proxy.ssl.get_for_subject(
                     ssl_names[-1],
-                    can_generate=bool(ssl_names[-1]),
+                    can_generate=True,
                 )
-                if ssl_names[-1]:
-                    message = "No certificate and/or CA assigned"
-                else:
-                    message = (
-                        "No certificate assigned (and SNI is missing - can't generate)"
-                    )
-            # enable SSL MITM if the certificate is available
+                message = "No certificate and/or CA assigned"
+            else:
+                message = "No certificate assigned (and SNI is missing; can't generate)"
+            # otherwise try proxy IP address and empty string (if no SNI)
+            if not ssl_entry:
+                get_names = [str(self.proxy.address)]
+                ssl_names.append(get_names[0])
+                if not self.client.address.host:
+                    ssl_names.append("")
+                    get_names.append("")
+                ssl_entry = self.proxy.ssl.get_for_subject(
+                    *get_names,
+                    can_generate=False,
+                )
+            # enable SSL MITM if a certificate is available
             if not ssl_entry:
                 self.proxy.warning(
                     f"{message} for any of: {ssl_names} - check SSL module configuration"
