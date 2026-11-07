@@ -261,6 +261,21 @@ def generate(names: tuple[str]):
     mce(f'§fRun §dssl export "{entry.subject_cn}"§f to make it persist with config§r')
 
 
+@cloup.command(help="Enable/disable TLS (pre)master key logging.")
+@cloup.argument(
+    "path",
+    type=click.Path(writable=True, path_type=Path),
+    required=False,
+    help="Path to output key log file (omit to disable).",
+)
+def keylog(path: Path | None):
+    ssl.keylog_path = path
+    if path:
+        mce(f"§fTLS key logging is now §aenabled§f (§d{path.resolve()}§f)§r")
+    else:
+        mce(f"§fTLS key logging is now §4disabled§r")
+
+
 class CommandModule(BaseCommandModule):
     CLI = cli
 
@@ -295,6 +310,7 @@ class CommandModule(BaseCommandModule):
                 paths=sorted(set(str(p) for e in ssl.cert_db for p in e.paths)),
                 use=dict(sorted(use_dict.items())),
                 unuse=dict(sorted(unuse_dict.items())),
+                keylog=str(ssl.keylog_path) if ssl.keylog_path else None,
             ),
             scripts=dict(
                 unload=["ssl clear"],
@@ -312,8 +328,12 @@ class CommandModule(BaseCommandModule):
             if not names:
                 continue
             yield f'ssl use -u "{query}" ' + " ".join(f'"{n}"' for n in names)
+        keylog = config.config.get("keylog", None)
+        if keylog:
+            yield f'ssl keylog "{keylog}"'
 
 
 cli.section("Certificate management", import_, export, delete, clear)
 cli.section("Certificate Authority usage", use, generate)
+cli.section("SSL MITM configuration", keylog)
 COMMAND = CommandModule()

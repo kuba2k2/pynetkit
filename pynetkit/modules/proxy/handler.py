@@ -5,7 +5,13 @@ import socketserver
 from ipaddress import IPv4Address
 from socket import AF_INET, SOCK_STREAM, socket
 from socketserver import BaseRequestHandler
-from ssl import PROTOCOL_TLS_CLIENT, PROTOCOL_TLS_SERVER, SSLContext, VerifyMode
+from ssl import (
+    PROTOCOL_TLS_CLIENT,
+    PROTOCOL_TLS_SERVER,
+    SSLContext,
+    TLSVersion,
+    VerifyMode,
+)
 
 from pynetkit.modules.ssl import SslStoreEntry
 from pynetkit.util.socketio import PeekingIO, SocketIO
@@ -171,7 +177,10 @@ class ProxyHandler(BaseRequestHandler):
             else:
                 chain_path = self.proxy.ssl.export_chain_tmp(ssl_entry)
                 ctx = SSLContext(PROTOCOL_TLS_SERVER)
+                ctx.maximum_version = TLSVersion.TLSv1_2
                 ctx.load_cert_chain(chain_path)
+                if self.proxy.ssl.keylog_path:
+                    ctx.keylog_filename = str(self.proxy.ssl.keylog_path.resolve())
                 # noinspection bad-argument-type
                 ssl_sock = ctx.wrap_socket(
                     sock=self.client.io,

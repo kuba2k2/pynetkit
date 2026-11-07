@@ -31,6 +31,7 @@ from .types import SslStoreEntry
 class SslModule(ModuleBase):
     # runtime configuration
     cert_db: list[SslStoreEntry]
+    keylog_path: Path | None
     # runtime status
     # { fingerprint: { client: { error|None: count } } }
     trust_db: dict[bytes, dict[IPv4Address, dict[str | None, int]]]
@@ -38,6 +39,7 @@ class SslModule(ModuleBase):
     def __init__(self):
         super().__init__()
         self.cert_db = []
+        self.keylog_path = None
         self.trust_db = defaultdict(
             lambda: defaultdict(
                 lambda: defaultdict(int),
